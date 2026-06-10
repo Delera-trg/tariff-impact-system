@@ -12,6 +12,9 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 
+# 确保logs目录存在
+os.makedirs('logs', exist_ok=True)
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
