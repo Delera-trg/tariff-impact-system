@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-中国商品价格传导与关税冲击测算系统
-简洁稳定版
+China Commodity Price Transmission and Tariff Impact Analysis System
+Stable Version
 """
 
 import streamlit as st
@@ -18,7 +18,7 @@ matplotlib.use('Agg')  # 非交互式后端，适合Streamlit
 
 # 页面配置
 st.set_page_config(
-    page_title="关税冲击测算系统",
+    page_title="Tariff Impact Analysis System",
     page_icon="chart_with_upwards_trend",
     layout="wide"
 )
@@ -85,7 +85,7 @@ def init_session_state():
         import uuid
         st.session_state.session_id = str(uuid.uuid4())
     if 'active_tab' not in st.session_state:
-        st.session_state.active_tab = "计算"
+        st.session_state.active_tab = "Calculation"
     # 统一管理税率参数
     if 'tariff_rate' not in st.session_state:
         st.session_state.tariff_rate = 0.10  # 默认10%
@@ -128,23 +128,23 @@ def render_guide():
     # 引导步骤配置
     guide_steps = [
         {
-            "title": "🎯 欢迎使用关税冲击测算系统",
-            "content": "本系统用于分析关税政策对商品价格的影响，适合经济学学习与政策分析。",
+            "title": "Welcome to Tariff Impact Analysis System",
+            "content": "This system analyzes the impact of tariff policies on commodity prices, suitable for economics study and policy analysis.",
             "step_name": "intro"
         },
         {
-            "title": "📋 第一步：设置参数",
-            "content": "在左侧边栏：\n1. 选择预设场景或自定义\n2. 选择要分析的行业\n3. 调整关税税率\n4. 设置传导参数",
+            "title": "Step 1: Set Parameters",
+            "content": "In the left sidebar:\n1. Select a preset or custom\n2. Choose industry to analyze\n3. Adjust tariff rate\n4. Set transmission parameters",
             "step_name": "params"
         },
         {
-            "title": "🔢 第二步：开始计算",
-            "content": "点击主界面中央的「开始计算」按钮，系统将根据您设置的参数进行关税冲击测算。",
+            "title": "Step 2: Calculate",
+            "content": "Click the 'Calculate' button in the center to run the tariff impact analysis.",
             "step_name": "calc"
         },
         {
-            "title": "📊 第三步：解读结果",
-            "content": "计算完成后，您将看到：\n• 价格变化表格（进口/批发/零售）\n• 福利效应指标\n• 价格对比图表\n• 可导出Excel报告",
+            "title": "Step 3: Interpret Results",
+            "content": "After calculation, you will see:\n- Price change table (Import/Wholesale/Retail)\n- Welfare effect indicators\n- Price comparison charts\n- Exportable Excel reports",
             "step_name": "result"
         }
     ]
@@ -247,30 +247,30 @@ def format_currency(value):
     return f"¥{value:,.2f}"
 
 
-# ==================== 历史记录页面 ====================
+# ==================== History Page ====================
 def render_history_page(calculator):
-    """渲染历史记录页面"""
-    st.markdown("## 📜 计算历史记录")
+    """Render history page"""
+    st.markdown("## Calculation History")
 
-    # 获取历史记录
+    # Get history
     session_id = st.session_state.get("session_id", "default")
     history = calculator.db.get_calculation_history(session_id=session_id, limit=50)
 
     if not history:
-        st.info("暂无计算历史记录")
-        st.markdown("请先进行关税冲击测算，系统会自动保存计算历史。")
+        st.info("No calculation history found")
+        st.markdown("Please run a tariff impact calculation first. The system will automatically save your history.")
         return
 
-    # 操作按钮
+    # Action buttons
     col1, col2 = st.columns([1, 5])
     with col1:
-        if st.button("🗑 清空历史", key="clear_history"):
+        if st.button("Clear History", key="clear_history"):
             calculator.db.clear_calculation_history(session_id=session_id)
-            st.success("历史记录已清空")
+            st.success("History cleared")
             st.experimental_rerun()
 
-    # 显示历史记录表格
-    st.markdown("### 历史记录")
+    # Display history table
+    st.markdown("### History Records")
 
     # 转换为DataFrame显示
     df_history = pd.DataFrame(history)
@@ -288,96 +288,96 @@ def render_history_page(calculator):
         df_display[col] = df_display[col].apply(lambda x: f"¥{x:,.0f}" if pd.notna(x) else "N/A")
 
     # 重命名列
-    df_display.columns = ["时间", "HS编码", "行业", "关税税率", "进口价", "批发价", "零售价", "关税收入", "无谓损失"]
+    df_display.columns = ["Time", "HS Code", "Industry", "Tariff Rate", "Import Price", "Wholesale Price", "Retail Price", "Tariff Revenue", "Deadweight Loss"]
 
     st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-    # 选择查看详情
-    st.markdown("### 查看详情")
-    selected_idx = st.selectbox("选择一条记录查看详情", range(len(history)), format_func=lambda i: f"{history[i]['industry_name']} - {history[i]['tariff_rate']*100:.1f}% 关税")
+    # Select to view details
+    st.markdown("### View Details")
+    selected_idx = st.selectbox("Select a record to view", range(len(history)), format_func=lambda i: f"{history[i]['industry_name']} - {history[i]['tariff_rate']*100:.1f}% Tariff")
 
     if selected_idx is not None:
         record = history[selected_idx]
-        st.markdown("#### 计算参数")
+        st.markdown("#### Calculation Parameters")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("HS编码", record.get("hs_code", "N/A"))
+            st.metric("HS Code", record.get("hs_code", "N/A"))
         with col2:
             tariff_val = record.get('tariff_rate') or 0
-            st.metric("关税税率", f"{tariff_val*100:.1f}%")
+            st.metric("Tariff Rate", f"{tariff_val*100:.1f}%")
         with col3:
             base_price_val = record.get('base_price') or 0
-            st.metric("基准价格", f"¥{base_price_val:,.2f}")
+            st.metric("Base Price", f"¥{base_price_val:,.2f}")
         with col4:
-            st.metric("需求弹性", record.get("elasticity", "N/A"))
+            st.metric("Elasticity", record.get("elasticity", "N/A"))
 
-        st.markdown("#### 价格变化")
+        st.markdown("#### Price Changes")
         col1, col2, col3 = st.columns(3)
         with col1:
             import_change = (record.get('import_after') or 0) - (record.get('import_before') or 0)
-            st.metric("进口价变化", f"¥{import_change:+,.2f}")
+            st.metric("Import Price Change", f"¥{import_change:+,.2f}")
         with col2:
             wholesale_change = (record.get('wholesale_after') or 0) - (record.get('wholesale_before') or 0)
-            st.metric("批发价变化", f"¥{wholesale_change:+,.2f}")
+            st.metric("Wholesale Price Change", f"¥{wholesale_change:+,.2f}")
         with col3:
             retail_change = (record.get('retail_after') or 0) - (record.get('retail_before') or 0)
-            st.metric("零售价变化", f"¥{retail_change:+,.2f}")
+            st.metric("Retail Price Change", f"¥{retail_change:+,.2f}")
 
-        st.markdown("#### 福利效应")
+        st.markdown("#### Welfare Effects")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             cs = record.get('consumer_surplus') or 0
-            st.metric("消费者剩余变化", f"¥{cs:+,.0f}", delta_color="inverse")
+            st.metric("Consumer Surplus Change", f"¥{cs:+,.0f}", delta_color="inverse")
         with col2:
             ps = record.get('producer_surplus') or 0
-            st.metric("生产者剩余变化", f"¥{ps:+,.0f}", delta_color="inverse")
+            st.metric("Producer Surplus Change", f"¥{ps:+,.0f}", delta_color="inverse")
         with col3:
             gov = record.get('government_revenue') or 0
-            st.metric("政府关税收入", f"¥{gov:+,.0f}")
+            st.metric("Government Revenue", f"¥{gov:+,.0f}")
         with col4:
             dwl = record.get('deadweight_loss') or 0
-            st.metric("无谓损失", f"¥{dwl:+,.0f}", delta_color="inverse")
+            st.metric("Deadweight Loss", f"¥{dwl:+,.0f}", delta_color="inverse")
 
 
-# ==================== 敏感性分析页面 ====================
+# ==================== Sensitivity Analysis Page ====================
 def render_sensitivity_page(calculator):
-    """渲染敏感性分析页面"""
-    st.markdown("## 📈 敏感性分析")
-    st.markdown("分析不同关税税率对价格和福利效应的影响")
+    """Render sensitivity analysis page"""
+    st.markdown("## Sensitivity Analysis")
+    st.markdown("Analyze the impact of different tariff rates on prices and welfare effects")
 
-    # 获取行业列表
+    # Get industry list
     industries = calculator.get_supported_industries()
     industry_options = {f"{ind['hs_code']} - {ind['name']}": ind['hs_code'] for ind in industries}
-    selected_industry_name = st.selectbox("选择行业", list(industry_options.keys()), 0, key="sensitivity_industry")
+    selected_industry_name = st.selectbox("Select Industry", list(industry_options.keys()), 0, key="sensitivity_industry")
     hs_code = industry_options[selected_industry_name]
 
-    # 设置税率范围
-    st.markdown("### 关税税率范围")
+    # Set tariff rate range
+    st.markdown("### Tariff Rate Range")
     col1, col2 = st.columns(2)
     with col1:
-        min_tariff = st.number_input("最低税率 (%)", 0, 50, 0)
+        min_tariff = st.number_input("Min Tariff Rate (%)", 0, 50, 0)
     with col2:
-        max_tariff = st.number_input("最高税率 (%)", 0, 50, 50)
+        max_tariff = st.number_input("Max Tariff Rate (%)", 0, 50, 50)
 
-    step = st.slider("税率步长 (%)", 1, 10, 5)
+    step = st.slider("Tariff Step (%)", 1, 10, 5)
 
-    # 传导参数
-    st.markdown("### 传导参数")
+    # Transmission parameters
+    st.markdown("### Transmission Parameters")
     col1, col2, col3 = st.columns(3)
     with col1:
-        pt1 = st.slider("进口->批发传导率", 0.0, 1.0, 0.8, 0.05)
+        pt1 = st.slider("Import->Wholesale Pass-Through", 0.0, 1.0, 0.8, 0.05)
     with col2:
-        pt2 = st.slider("批发->零售传导率", 0.0, 1.0, 0.7, 0.05)
+        pt2 = st.slider("Wholesale->Retail Pass-Through", 0.0, 1.0, 0.7, 0.05)
     with col3:
-        elasticity = st.number_input("需求弹性", 0.1, 5.0, 1.0, 0.1, key="sensitivity_elasticity")
+        elasticity = st.number_input("Demand Elasticity", 0.1, 5.0, 1.0, 0.1, key="sensitivity_elasticity")
 
-    if st.button("开始敏感性分析", type="primary"):
-        with st.spinner("正在计算..."):
-            # 获取行业基准价格
+    if st.button("Run Sensitivity Analysis", type="primary"):
+        with st.spinner("Calculating..."):
+            # Get industry base price
             industry_detail = calculator.db.get_industry_detail(hs_code=hs_code)
             base_price = industry_detail.get("base_price", 100) if industry_detail else 100
 
-            # 收集结果
+            # Collect results
             results = []
             tariff_rates = list(range(min_tariff, max_tariff + 1, step))
 
@@ -407,11 +407,11 @@ def render_sensitivity_page(calculator):
                     })
 
             if results:
-                # 创建DataFrame
+                # Create DataFrame
                 df = pd.DataFrame(results)
 
-                # 显示结果表格
-                st.markdown("### 分析结果")
+                # Display result table
+                st.markdown("### Analysis Results")
                 st.dataframe(df.style.format({
                     "tariff_rate": "{:.0f}%",
                     "import_price": "¥{:.2f}",
@@ -426,7 +426,7 @@ def render_sensitivity_page(calculator):
                 # 绘制敏感性分析图表
                 st.markdown("### Price Sensitivity Analysis")
 
-                # 价格变化图 - 英文标注
+                # 价格变化图 - 英文标注，X轴范围0-50%
                 import matplotlib.pyplot as plt
                 fig_price, ax = plt.subplots(figsize=(10, 5))
                 ax.plot(df['tariff_rate'], df['import_price'], marker='o', label='Import Price')
@@ -435,41 +435,66 @@ def render_sensitivity_page(calculator):
                 ax.set_xlabel('Tariff Rate (%)')
                 ax.set_ylabel('Price (CNY)')
                 ax.set_title('Tariff Rate vs Price Changes')
+                ax.set_xlim(0, 50)
                 ax.legend()
                 ax.grid(True, alpha=0.3)
                 st.pyplot(fig_price, use_container_width=True)
                 plt.close(fig_price)  # 释放内存
 
-                # 福利效应图 - 英文标注
+                # 福利效应图 - 使用Plotly添加hover工具提示
                 st.markdown("### Welfare Effect Sensitivity Analysis")
-                fig_welfare, ax2 = plt.subplots(figsize=(10, 5))
-                ax2.plot(df["tariff_rate"], df["consumer_surplus"], marker='o', label='Consumer Surplus Change')
-                ax2.plot(df["tariff_rate"], df["producer_surplus"], marker='s', label='Producer Surplus Change')
-                ax2.plot(df["tariff_rate"], df["government_revenue"], marker='^', label='Government Revenue')
-                ax2.plot(df["tariff_rate"], df["deadweight_loss"], marker='x', label='Deadweight Loss')
-                ax2.set_xlabel('Tariff Rate (%)')
-                ax2.set_ylabel('Amount (CNY)')
-                ax2.set_title('Tariff Rate vs Welfare Effects')
-                ax2.legend()
-                ax2.grid(True, alpha=0.3)
-                st.pyplot(fig_welfare, use_container_width=True)
-                plt.close(fig_welfare)  # 释放内存
+                import plotly.graph_objects as go
 
-                # 导出结果
-                st.markdown("### 导出分析结果")
-                file_name = f"敏感性分析_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                fig_welfare = go.Figure()
+
+                # 添加各条曲线并配置hover
+                fig_welfare.add_trace(go.Scatter(
+                    x=df["tariff_rate"], y=df["consumer_surplus"],
+                    mode='lines+markers', name='Consumer Surplus Change',
+                    hovertemplate='Tariff Rate: %{x}%<br>Consumer Surplus: %{y:,.0f} CNY<extra></extra>'
+                ))
+                fig_welfare.add_trace(go.Scatter(
+                    x=df["tariff_rate"], y=df["producer_surplus"],
+                    mode='lines+markers', name='Producer Surplus Change',
+                    hovertemplate='Tariff Rate: %{x}%<br>Producer Surplus: %{y:,.0f} CNY<extra></extra>'
+                ))
+                fig_welfare.add_trace(go.Scatter(
+                    x=df["tariff_rate"], y=df["government_revenue"],
+                    mode='lines+markers', name='Government Revenue',
+                    hovertemplate='Tariff Rate: %{x}%<br>Government Revenue: %{y:,.0f} CNY<extra></extra>'
+                ))
+                fig_welfare.add_trace(go.Scatter(
+                    x=df["tariff_rate"], y=df["deadweight_loss"],
+                    mode='lines+markers', name='Deadweight Loss',
+                    hovertemplate='Tariff Rate: %{x}%<br>Deadweight Loss: %{y:,.0f} CNY<extra></extra>'
+                ))
+
+                fig_welfare.update_layout(
+                    title='Tariff Rate vs Welfare Effects',
+                    xaxis_title='Tariff Rate (%)',
+                    yaxis_title='Amount (CNY)<br><sup>(Unit: CNY, negative values indicate welfare reduction)</sup>',
+                    xaxis=dict(range=[0, 50]),
+                    legend=dict(x=0, y=1, traceorder='normal'),
+                    hovermode='x unified'
+                )
+
+                st.plotly_chart(fig_welfare, use_container_width=True)
+
+                # Export results
+                st.markdown("### Export Analysis Results")
+                file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 file_path = exporter.export_to_excel({"sensitivity_analysis": df.to_dict()}, file_name=file_name)
                 with open(file_path, "rb") as f:
-                    st.download_button("下载Excel报告", data=f, file_name=os.path.basename(file_path),
+                    st.download_button("Download Excel Report", data=f, file_name=os.path.basename(file_path),
                                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             else:
-                st.error("计算失败，请检查参数设置")
+                st.error("Calculation failed. Please check parameter settings.")
 
 
-# ==================== 侧边栏 ====================
+# ==================== Sidebar ====================
 with st.sidebar:
-    # 新手引导按钮
-    if st.button("📖 重新显示引导", key="show_guide_btn"):
+    # Guide button
+    if st.button("Show Guide Again", key="show_guide_btn"):
         st.session_state.guided = False
         st.session_state.show_guide = True
         st.session_state.guide_step = 0
@@ -480,8 +505,8 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # ========== 参数设置区域 ==========
-    st.markdown("## 参数设置")
+    # ========== Parameter Settings Area ==========
+    st.markdown("## Parameter Settings")
 
     # 预设场景 - 税率联动（统一用session_state管理）
     preset_options = ["Custom", "25%", "5%", "40%", "0%"]
@@ -507,7 +532,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 行业选择 - 参数联动
+    # Industry selection - parameter linkage
     st.markdown("### Select Industry")
     industries = calculator.get_supported_industries()
     industry_options = {f"{ind['hs_code']} - {ind['name']}": ind['hs_code'] for ind in industries}
@@ -518,7 +543,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 关税税率 - 使用session_state统一管理
+    # Tariff rate - unified management with session_state
     st.markdown("### Tariff Rate")
     if preset == "Custom":
         # 自定义输入框 - 更新session_state
@@ -667,12 +692,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 使用st.tabs实现导航栏
-tab1, tab2, tab3 = st.tabs(["📊 关税计算", "📜 历史记录", "📈 敏感性分析"])
+tab1, tab2, tab3 = st.tabs(["Tariff Calculation", "History", "Sensitivity Analysis"])
 
 with tab1:
-    # 关税计算内容
-    st.title("中国商品价格传导与关税冲击测算系统")
-    st.markdown("**适用对象：经济学学生、国际贸易学习者**")
+    # Tariff calculation content
+    st.title("China Commodity Price Transmission and Tariff Impact Analysis System")
+    st.markdown("**Target Users: Economics Students, International Trade Learners**")
 
     # 顶部操作提示
     st.markdown("""
@@ -682,28 +707,28 @@ with tab1:
         <div style="display: flex; justify-content: center; align-items: center; gap: 30px; flex-wrap: wrap;">
             <div style="text-align: center;">
                 <span style="background: #4CAF50; color: white; padding: 4px 12px; border-radius: 12px; font-weight: bold;">1</span>
-                <span style="margin-left: 8px; font-weight: 500;">设置参数</span>
+                <span style="margin-left: 8px; font-weight: 500;">Set Parameters</span>
             </div>
             <span style="color: #999;">➜</span>
             <div style="text-align: center;">
                 <span style="background: #2196F3; color: white; padding: 4px 12px; border-radius: 12px; font-weight: bold;">2</span>
-                <span style="margin-left: 8px; font-weight: 500;">点击计算</span>
+                <span style="margin-left: 8px; font-weight: 500;">Click Calculate</span>
             </div>
             <span style="color: #999;">➜</span>
             <div style="text-align: center;">
                 <span style="background: #FF9800; color: white; padding: 4px 12px; border-radius: 12px; font-weight: bold;">3</span>
-                <span style="margin-left: 8px; font-weight: 500;">查看结果</span>
+                <span style="margin-left: 8px; font-weight: 500;">View Results</span>
             </div>
         </div>
     </div>
 """, unsafe_allow_html=True)
 
 with tab2:
-    # 历史记录内容
+    # History content
     render_history_page(calculator)
 
 with tab3:
-    # 敏感性分析内容
+    # Sensitivity analysis content
     render_sensitivity_page(calculator)
 
 # 计算按钮
