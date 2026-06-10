@@ -774,12 +774,11 @@ if st.button("Calculate / 开始计算", type="primary"):
             # 固定关键数据点
             Q0 = 1000  # 初始均衡数量
             P0 = 8000  # 初始均衡价格（也是世界价格）
-            Pt = price["import"]["after"]  # 税后价格
+            Pt = 8800  # 固定税后价格
             Pw = P0  # 世界价格
 
-            # 计算Qs和Qd（供需曲线交点）
-            # 需求曲线: P = 10000 - 2Q (经过点(0,10000)和(1000,8000))
-            # 供给曲线: P = 4000 + 4Q (经过点(0,4000)和(1000,8000))
+            # 需求曲线: P = 10000 - 2Q
+            # 供给曲线: P = 4000 + 4Q
             Qd = (10000 - Pt) / 2  # 需求曲线与Pt的交点
             Qs = (Pt - 4000) / 4   # 供给曲线与Pt的交点
 
@@ -805,7 +804,7 @@ if st.button("Calculate / 开始计算", type="primary"):
             ax_eq.plot(Q0, P0, 'go', markersize=10, label=f'Initial Equilibrium (Q={Q0}, P={P0})')
 
             # 税后价格线
-            ax_eq.axhline(y=Pt, color='orange', linestyle='--', linewidth=2, label=f'Price After Tariff (P={Pt:.0f})')
+            ax_eq.axhline(y=Pt, color='orange', linestyle='--', linewidth=2, label=f'Price After Tariff (P={Pt})')
 
             # 【1. 消费者剩余损失 Consumer Surplus Loss（粉色）】
             # 区域: (0, Pt) → (Qd, Pt) → (Q0, P0) → (0, P0) → (0, Pt)
@@ -830,38 +829,36 @@ if st.button("Calculate / 开始计算", type="primary"):
             ax_eq.add_patch(ps_polygon)
 
             # 【3. 政府关税收入 Government Revenue（深绿）矩形】
-            # 区域: (Qs, Pt) → (Qd, Pt) → (Qd, P0) → (Qs, P0) → (Qs, Pt)
+            # 区域: (Qs, 8000) → (Qd, 8000) → (Qd, 8800) → (Qs, 8800)
             if Qd > Qs:
                 gov_rect = plt.Polygon([
-                    [Qs, Pt],
-                    [Qd, Pt],
-                    [Qd, P0],
                     [Qs, P0],
-                    [Qs, Pt]
+                    [Qd, P0],
+                    [Qd, Pt],
+                    [Qs, Pt],
+                    [Qs, P0]
                 ], alpha=0.5, color='darkgreen', label='Government Revenue')
                 ax_eq.add_patch(gov_rect)
 
-            # 【4. 无谓损失 Deadweight Loss（紫色，两个三角形）】
-            # ① 生产扭曲损失（左侧三角形）
-            # (Q0, P0) → (Qs, Pt) → (Qs, P0) → (Q0, P0)
-            if Qs < Q0:
+            # 【4. 无谓损失 Deadweight Loss（淡紫色，两个三角形）】
+            # 左侧生产扭曲损失: (Qs, 8000) → (Qs, 8800) → (1000, 8000)
+            if Qs > 0:
                 dwl1_polygon = plt.Polygon([
-                    [Q0, P0],
-                    [Qs, Pt],
                     [Qs, P0],
-                    [Q0, P0]
-                ], alpha=0.4, color='purple', label='Deadweight Loss (Production)')
+                    [Qs, Pt],
+                    [Q0, P0],
+                    [Qs, P0]
+                ], alpha=0.4, color='plum', label='Deadweight Loss')
                 ax_eq.add_patch(dwl1_polygon)
 
-            # ② 消费扭曲损失（右侧三角形）
-            # (Q0, P0) → (Qd, Pt) → (Qd, P0) → (Q0, P0)
+            # 右侧消费扭曲损失: (Qd, 8000) → (Qd, 8800) → (1000, 8000)
             if Qd < Q0:
                 dwl2_polygon = plt.Polygon([
-                    [Q0, P0],
-                    [Qd, Pt],
                     [Qd, P0],
-                    [Q0, P0]
-                ], alpha=0.4, color='purple')
+                    [Qd, Pt],
+                    [Q0, P0],
+                    [Qd, P0]
+                ], alpha=0.4, color='plum')
                 ax_eq.add_patch(dwl2_polygon)
 
             ax_eq.set_xlabel('Quantity', fontsize=12)
