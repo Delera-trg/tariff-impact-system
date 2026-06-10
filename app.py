@@ -219,21 +219,21 @@ def render_guide():
         # 按钮列
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
-            if st.button("⏭ 跳过引导", key="skip_guide"):
+            if st.button("Skip Guide", key="skip_guide"):
                 st.session_state.guided = True
                 rerun_page()
         with col2:
             if current_step > 0:
-                if st.button("⬆ 上一步", key="prev_step"):
+                if st.button("Previous", key="prev_step"):
                     st.session_state.guide_step -= 1
                     rerun_page()
         with col3:
             if current_step < total_steps - 1:
-                if st.button("下一步 ⬇", key="next_step"):
+                if st.button("Next", key="next_step"):
                     st.session_state.guide_step += 1
                     rerun_page()
             else:
-                if st.button("✅ 开始使用", key="finish_guide"):
+                if st.button("Start Using", key="finish_guide"):
                     st.session_state.guided = True
                     rerun_page()
 
@@ -243,7 +243,7 @@ render_guide()
 # 工具函数
 def format_currency(value):
     if abs(value) >= 10000:
-        return f"¥{value/10000:.2f}万"
+        return f"¥{value:,.0f}"
     return f"¥{value:,.2f}"
 
 
@@ -558,8 +558,8 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 传导参数 - 从行业数据读取默认值
-    st.markdown("### 传导参数 (Pass-Through Parameters)")
+    # Pass-Through Parameters
+    st.markdown("### Pass-Through Parameters")
     # 从数据库获取行业特定的传导参数
     db_pt1 = 0.8
     db_pt2 = 0.7
@@ -732,7 +732,7 @@ with tab3:
     render_sensitivity_page(calculator)
 
 # 计算按钮
-if st.button("Calculate / 开始计算", type="primary"):
+if st.button("Calculate", type="primary"):
     with st.spinner("Calculating..."):
         # 获取当前价格调整系数
         current_price_factor = st.session_state.get('price_factor', 1.0)
