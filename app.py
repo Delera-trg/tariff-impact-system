@@ -484,7 +484,8 @@ with st.sidebar:
     st.markdown("## 参数设置")
 
     # 预设场景 - 税率联动（统一用session_state管理）
-    preset = st.radio("Quick Presets", ["Custom", "25%", "5%", "40%", "0%"], key="preset")
+    preset_options = ["Custom", "25%", "5%", "40%", "0%"]
+    preset = st.radio("Quick Presets / Templates", preset_options, key="preset")
 
     # 检测preset变化，更新session_state中的税率
     if preset != st.session_state.get('current_preset'):
@@ -497,8 +498,9 @@ with st.sidebar:
             st.session_state.tariff_rate = 0.40
         elif preset == "0%":
             st.session_state.tariff_rate = 0.00
-        else:
-            st.session_state.tariff_rate = 0.10
+        elif preset == "Custom":
+            # 保持当前税率不变，允许用户手动修改
+            pass
 
     # 当前使用的税率（从session_state读取）
     current_tariff = st.session_state.tariff_rate
@@ -543,20 +545,47 @@ with st.sidebar:
         db_pt2 = tp.get("wholesale_to_retail", {}).get("pass_through_rate", 0.7)
         db_elasticity = tp.get("import_to_wholesale", {}).get("elasticity", 1.0)
 
-    pass_through_1 = st.slider("Import->Wholesale Pass-Through", 0.0, 1.0, db_pt1, 0.05, key="pt1")
-    pass_through_2 = st.slider("Wholesale->Retail Pass-Through", 0.0, 1.0, db_pt2, 0.05, key="pt2")
-    elasticity = st.number_input("Demand Elasticity", 0.1, 5.0, db_elasticity, 0.1, key="main_elasticity")
+    pass_through_1 = st.slider("Import->Wholesale Pass-Through", 0.0, 1.0, db_pt1, 0.05, key="pt1",
+        help="Tariff cost transfer ratio: 1 = complete transfer to buyers, 0 = importer bears all costs")
+    pass_through_2 = st.slider("Wholesale->Retail Pass-Through", 0.0, 1.0, db_pt2, 0.05, key="pt2",
+        help="Tariff cost transfer ratio from wholesale to retail")
+    elasticity = st.number_input("Demand Elasticity (Ed)", 0.1, 5.0, db_elasticity, 0.1, key="main_elasticity",
+        help="Price elasticity of demand (absolute value): 0<Ed<1 = inelastic, Ed=1 = unit elastic, Ed>1 = elastic")
 
     st.markdown("---")
 
-    # 行业信息 - 显示从数据库读取的数据
+    # 市场价格调整系数
+    st.markdown("### Price Adjustment Factor")
+    if 'price_factor' not in st.session_state:
+        st.session_state.price_factor = 1.0
+
+    price_factor = st.slider("Market Price Adjustment Factor", 0.5, 1.5, st.session_state.price_factor, 0.05, key="price_factor_slider",
+        help="Actual price = Industry Base Price x Adjustment Factor. Range: 0.5 (50%) to 1.5 (150%)")
+    st.session_state.price_factor = price_factor
+
+    st.markdown("---")
+
+    # 行业信息 - 显示从数据库读取的数据（含调整系数）
     if industry_detail:
+        base_import = industry_detail['base_price']
+        base_wholesale = industry_detail['wholesale_price']
+        base_retail = industry_detail['retail_price']
+
+        # 应用调整系数
+        adjusted_import = base_import * price_factor
+        adjusted_wholesale = base_wholesale * price_factor
+        adjusted_retail = base_retail * price_factor
+
         st.markdown("### Industry Info")
         st.markdown(f"""
 - **HS Code:** {industry_detail['hs_code']}
-- **Import Price:** ¥{industry_detail['base_price']:,.2f}
-- **Wholesale Price:** ¥{industry_detail['wholesale_price']:,.2f}
-- **Retail Price:** ¥{industry_detail['retail_price']:,.2f}
+- **Base Import Price:** ¥{base_import:,.2f}
+- **Base Wholesale Price:** ¥{base_wholesale:,.2f}
+- **Base Retail Price:** ¥{base_retail:,.2f}
+- **Adjustment Factor:** {price_factor:.2f}x
+- **Adjusted Import Price:** ¥{adjusted_import:,.2f}
+- **Adjusted Wholesale Price:** ¥{adjusted_wholesale:,.2f}
+- **Adjusted Retail Price:** ¥{adjusted_retail:,.2f}
 - **Current Tariff:** {industry_detail.get('current_tariff_rate', 0)*100:.0f}%
         """)
 
@@ -680,13 +709,17 @@ with tab3:
 # 计算按钮
 if st.button("Calculate / 开始计算", type="primary"):
     with st.spinner("Calculating..."):
+        # 获取当前价格调整系数
+        current_price_factor = st.session_state.get('price_factor', 1.0)
+
         result = calculator.calculate(
             hs_code=hs_code,
             tariff_rate=tariff_rate,
             custom_params={
                 "pass_through_1": pass_through_1,
                 "pass_through_2": pass_through_2,
-                "elasticity": elasticity
+                "elasticity": elasticity,
+                "price_factor": current_price_factor
             }
         )
         # 保存计算结果到session_state，并记录当前参数哈希
@@ -732,4 +765,64 @@ if st.button("Calculate / 开始计算", type="primary"):
             with col2: st.metric("Producer Surplus Change", format_currency(welfare.get("producer_surplus_change", 0)), delta_color="inverse")
             with col3: st.metric("Government Revenue", format_currency(welfare.get("government_revenue", 0)))
             with col4: st.metric("Deadweight Loss", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
+
+            # 局部均衡供需图
+            st.markdown("### Supply-Demand Equilibrium Analysis")
+            import matplotlib.pyplot as plt
+            import numpy as np
+
+            # 获取价格和福利数据
+            p0 = price["import"]["before"]  # 初始均衡价格
+            p1 = price["import"]["after"]   # 税后价格
+            cs = welfare.get("consumer_surplus_change", 0)
+            ps = welfare.get("producer_surplus_change", 0)
+            gov = welfare.get("government_revenue", 0)
+            dwl = welfare.get("deadweight_loss", 0)
+
+            fig_eq, ax_eq = plt.subplots(figsize=(10, 6))
+
+            # 绘制供需曲线
+            q_range = np.linspace(0, 2000, 100)
+            # 需求曲线 (向下倾斜)
+            p_demand = p0 * (1 - q_range/2500)
+            # 供给曲线 (向上倾斜)
+            p_supply = p0 * (0.5 + q_range/2000)
+
+            ax_eq.plot(q_range, p_demand, 'b-', label='Demand Curve', linewidth=2)
+            ax_eq.plot(q_range, p_supply, 'r-', label='Supply Curve', linewidth=2)
+
+            # 初始均衡点
+            ax_eq.axvline(x=1000, color='gray', linestyle='--', alpha=0.5)
+            ax_eq.axhline(y=p0, color='gray', linestyle='--', alpha=0.5)
+            ax_eq.plot(1000, p0, 'go', markersize=10, label=f'Initial Equilibrium (Q=1000, P={p0:.0f})')
+
+            # 税后价格线
+            ax_eq.axhline(y=p1, color='orange', linestyle='--', linewidth=2, label=f'Price After Tariff (P={p1:.0f})')
+
+            # 用色块表示福利变化
+            # 消费者剩余损失 (三角形)
+            if cs < 0:
+                triangle_cs = plt.Polygon([[0, p0], [0, p1], [800, p0]], alpha=0.3, color='red', label='Consumer Surplus Loss')
+                ax_eq.add_patch(triangle_cs)
+
+            # 政府关税收入 (矩形)
+            if gov > 0:
+                rect_gov = plt.Polygon([[800, 0], [800, p1-p0], [1000, 0], [1000, p1-p0]], alpha=0.3, color='green', label='Government Revenue')
+                ax_eq.add_patch(rect_gov)
+
+            # 无谓损失 (三角形)
+            if dwl > 0:
+                triangle_dwl = plt.Polygon([[800, p1], [900, p0], [1000, p0]], alpha=0.3, color='purple', label='Deadweight Loss')
+                ax_eq.add_patch(triangle_dwl)
+
+            ax_eq.set_xlabel('Quantity', fontsize=12)
+            ax_eq.set_ylabel('Price (CNY)', fontsize=12)
+            ax_eq.set_title('Partial Equilibrium: Tariff Impact on Welfare', fontsize=14)
+            ax_eq.legend(loc='upper right', fontsize=9)
+            ax_eq.grid(True, alpha=0.3)
+            ax_eq.set_xlim(0, 1500)
+            ax_eq.set_ylim(0, max(p1*1.5, p0*1.5))
+
+            st.pyplot(fig_eq, use_container_width=True)
+            plt.close(fig_eq)
 

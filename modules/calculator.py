@@ -78,8 +78,11 @@ class TariffCalculator:
             pass_through_2 = transmission_params.get("wholesale_to_retail", {}).get("pass_through_rate", 0.7)
             elasticity = transmission_params.get("import_to_wholesale", {}).get("elasticity", 1.0)
 
-        # 4. 获取基准价格
+        # 4. 获取基准价格（应用价格调整系数）
         base_price = custom_params.get("base_price") if custom_params else industry["base_price"]
+        price_factor = custom_params.get("price_factor") if custom_params else 1.0
+        # 应用调整系数
+        base_price = base_price * price_factor
 
         # 5. 调用计算（优先使用本地计算，Stata启动太慢）
         if self.use_stata and self.stata.is_available():
@@ -116,6 +119,7 @@ class TariffCalculator:
             "params": {
                 "tariff_rate": tariff_rate,
                 "base_price": base_price,
+                "price_factor": price_factor,
                 "pass_through_1": pass_through_1,
                 "pass_through_2": pass_through_2,
                 "elasticity": elasticity
