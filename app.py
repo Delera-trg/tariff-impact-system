@@ -419,12 +419,13 @@ def render_sensitivity_page(calculator):
                 }), use_container_width=True, hide_index=True)
 
                 # 绘制敏感性分析图表
-                st.markdown("### 价格敏感性分析")
+                st.markdown("### Price Sensitivity Analysis")
 
                 # 价格变化图 - 英文标注
                 import matplotlib.pyplot as plt
-                import time
-                unique_key = int(time.time() * 1000)  # 动态唯一key
+                import matplotlib
+                matplotlib.use('Agg')  # 确保使用非交互式后端
+                plt.rcParams['font.family'] = 'DejaVu Sans'
                 fig_price, ax = plt.subplots(figsize=(10, 5))
                 ax.plot(df['tariff_rate'], df['import_price'], marker='o', label='Import Price')
                 ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', label='Wholesale Price')
@@ -434,7 +435,7 @@ def render_sensitivity_page(calculator):
                 ax.set_title('Tariff Rate vs Price Changes')
                 ax.legend()
                 ax.grid(True, alpha=0.3)
-                st.pyplot(fig_price, key=f"price_chart_{unique_key}")
+                st.pyplot(fig_price)
 
                 # 福利效应图 - 英文标注
                 st.markdown("### Welfare Effect Sensitivity Analysis")
@@ -448,7 +449,7 @@ def render_sensitivity_page(calculator):
                 ax2.set_title('Tariff Rate vs Welfare Effects')
                 ax2.legend()
                 ax2.grid(True, alpha=0.3)
-                st.pyplot(fig_welfare, key=f"welfare_chart_{unique_key}")
+                st.pyplot(fig_welfare)
 
                 # 导出结果
                 st.markdown("### 导出分析结果")
