@@ -115,23 +115,23 @@ st.markdown("""
     }
 
     /* ===== 按钮样式 ===== */
-    /* 主要按钮 - 更突出 */
+    /* 主要按钮 - 红底白字 */
     div.stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #3182CE 0%, #2B6CB0 100%);
-        border: none;
-        border-radius: 8px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        font-size: 1rem;
-        color: #FFFFFF;
-        width: 100%;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 8px rgba(49,130,206,0.3);
+        background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%) !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 2rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        color: #FFFFFF !important;
+        width: 100% !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 2px 8px rgba(220,38,38,0.3) !important;
     }
 
     div.stButton > button[kind="primary"]:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(49,130,206,0.4);
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(220,38,38,0.4) !important;
     }
 
     /* ===== 选项卡样式 ===== */
