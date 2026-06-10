@@ -86,6 +86,11 @@ def init_session_state():
         st.session_state.session_id = str(uuid.uuid4())
     if 'active_tab' not in st.session_state:
         st.session_state.active_tab = "计算"
+    # 统一管理税率参数
+    if 'tariff_rate' not in st.session_state:
+        st.session_state.tariff_rate = 0.10  # 默认10%
+    if 'current_preset' not in st.session_state:
+        st.session_state.current_preset = "Custom"
 
 init_session_state()
 
@@ -478,18 +483,25 @@ with st.sidebar:
     # ========== 参数设置区域 ==========
     st.markdown("## 参数设置")
 
-    # 预设场景 - 税率联动
+    # 预设场景 - 税率联动（统一用session_state管理）
     preset = st.radio("Quick Presets", ["Custom", "25%", "5%", "40%", "0%"], key="preset")
-    if preset == "25%":
-        default_tariff = 25
-    elif preset == "5%":
-        default_tariff = 5
-    elif preset == "40%":
-        default_tariff = 40
-    elif preset == "0%":
-        default_tariff = 0
-    else:
-        default_tariff = 10
+
+    # 检测preset变化，更新session_state中的税率
+    if preset != st.session_state.get('current_preset'):
+        st.session_state.current_preset = preset
+        if preset == "25%":
+            st.session_state.tariff_rate = 0.25
+        elif preset == "5%":
+            st.session_state.tariff_rate = 0.05
+        elif preset == "40%":
+            st.session_state.tariff_rate = 0.40
+        elif preset == "0%":
+            st.session_state.tariff_rate = 0.00
+        else:
+            st.session_state.tariff_rate = 0.10
+
+    # 当前使用的税率（从session_state读取）
+    current_tariff = st.session_state.tariff_rate
 
     st.markdown("---")
 
@@ -504,16 +516,17 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 关税税率
+    # 关税税率 - 使用session_state统一管理
     st.markdown("### Tariff Rate")
-    if preset == "自定义":
-        # 自定义输入框
-        custom_tariff = st.number_input("Custom Tariff (%)", min_value=0, max_value=100, value=default_tariff, step=1, key="custom_tariff_input")
+    if preset == "Custom":
+        # 自定义输入框 - 更新session_state
+        custom_tariff = st.number_input("Custom Tariff (%)", min_value=0, max_value=100, value=int(current_tariff * 100), step=1, key="custom_tariff_input")
         tariff_rate = custom_tariff / 100
+        st.session_state.tariff_rate = tariff_rate  # 同步到session_state
         st.markdown(f"**Current: {custom_tariff}%**")
     else:
-        # 滑块选择 - 税率联动
-        tariff_rate = st.slider("Tariff Rate (%)", 0, 50, default_tariff, 1, key="tariff_slider") / 100
+        # 预设模式 - 使用session_state中的值
+        tariff_rate = st.session_state.tariff_rate
         st.markdown(f"**Current: {tariff_rate*100:.0f}%**")
 
     st.markdown("---")
