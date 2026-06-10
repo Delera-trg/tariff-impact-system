@@ -766,54 +766,103 @@ if st.button("Calculate / 开始计算", type="primary"):
             with col3: st.metric("Government Revenue", format_currency(welfare.get("government_revenue", 0)))
             with col4: st.metric("Deadweight Loss", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
 
-            # 局部均衡供需图
+            # 局部均衡供需图 - 严格按坐标绘制
             st.markdown("### Supply-Demand Equilibrium Analysis")
             import matplotlib.pyplot as plt
             import numpy as np
 
-            # 获取价格和福利数据
-            p0 = price["import"]["before"]  # 初始均衡价格
-            p1 = price["import"]["after"]   # 税后价格
-            cs = welfare.get("consumer_surplus_change", 0)
-            ps = welfare.get("producer_surplus_change", 0)
-            gov = welfare.get("government_revenue", 0)
-            dwl = welfare.get("deadweight_loss", 0)
+            # 固定关键数据点
+            Q0 = 1000  # 初始均衡数量
+            P0 = 8000  # 初始均衡价格（也是世界价格）
+            Pt = price["import"]["after"]  # 税后价格
+            Pw = P0  # 世界价格
+
+            # 计算Qs和Qd（供需曲线交点）
+            # 需求曲线: P = 10000 - 2Q (经过点(0,10000)和(1000,8000))
+            # 供给曲线: P = 4000 + 4Q (经过点(0,4000)和(1000,8000))
+            Qd = (10000 - Pt) / 2  # 需求曲线与Pt的交点
+            Qs = (Pt - 4000) / 4   # 供给曲线与Pt的交点
+
+            # 确保Qd和Qs在合理范围内
+            Qd = max(0, min(Qd, 1500))
+            Qs = max(0, min(Qs, 1500))
 
             fig_eq, ax_eq = plt.subplots(figsize=(10, 6))
 
             # 绘制供需曲线
-            q_range = np.linspace(0, 2000, 100)
-            # 需求曲线 (向下倾斜)
-            p_demand = p0 * (1 - q_range/2500)
-            # 供给曲线 (向上倾斜)
-            p_supply = p0 * (0.5 + q_range/2000)
+            q_range = np.linspace(0, 1500, 100)
+            # 需求曲线: P = 10000 - 2Q
+            p_demand = 10000 - 2 * q_range
+            # 供给曲线: P = 4000 + 4Q
+            p_supply = 4000 + 4 * q_range
 
             ax_eq.plot(q_range, p_demand, 'b-', label='Demand Curve', linewidth=2)
             ax_eq.plot(q_range, p_supply, 'r-', label='Supply Curve', linewidth=2)
 
             # 初始均衡点
-            ax_eq.axvline(x=1000, color='gray', linestyle='--', alpha=0.5)
-            ax_eq.axhline(y=p0, color='gray', linestyle='--', alpha=0.5)
-            ax_eq.plot(1000, p0, 'go', markersize=10, label=f'Initial Equilibrium (Q=1000, P={p0:.0f})')
+            ax_eq.axvline(x=Q0, color='gray', linestyle='--', alpha=0.5)
+            ax_eq.axhline(y=P0, color='gray', linestyle='--', alpha=0.5)
+            ax_eq.plot(Q0, P0, 'go', markersize=10, label=f'Initial Equilibrium (Q={Q0}, P={P0})')
 
             # 税后价格线
-            ax_eq.axhline(y=p1, color='orange', linestyle='--', linewidth=2, label=f'Price After Tariff (P={p1:.0f})')
+            ax_eq.axhline(y=Pt, color='orange', linestyle='--', linewidth=2, label=f'Price After Tariff (P={Pt:.0f})')
 
-            # 用色块表示福利变化
-            # 消费者剩余损失 (三角形)
-            if cs < 0:
-                triangle_cs = plt.Polygon([[0, p0], [0, p1], [800, p0]], alpha=0.3, color='red', label='Consumer Surplus Loss')
-                ax_eq.add_patch(triangle_cs)
+            # 【1. 消费者剩余损失 Consumer Surplus Loss（粉色）】
+            # 区域: (0, Pt) → (Qd, Pt) → (Q0, P0) → (0, P0) → (0, Pt)
+            cs_polygon = plt.Polygon([
+                [0, Pt],
+                [Qd, Pt],
+                [Q0, P0],
+                [0, P0],
+                [0, Pt]
+            ], alpha=0.4, color='pink', label='Consumer Surplus Loss')
+            ax_eq.add_patch(cs_polygon)
 
-            # 政府关税收入 (矩形)
-            if gov > 0:
-                rect_gov = plt.Polygon([[800, 0], [800, p1-p0], [1000, 0], [1000, p1-p0]], alpha=0.3, color='green', label='Government Revenue')
-                ax_eq.add_patch(rect_gov)
+            # 【2. 生产者剩余增加 Producer Surplus Gain（浅绿）】
+            # 区域: (0, Pt) → (Qs, Pt) → (Q0, P0) → (0, P0) → (0, Pt)
+            ps_polygon = plt.Polygon([
+                [0, Pt],
+                [Qs, Pt],
+                [Q0, P0],
+                [0, P0],
+                [0, Pt]
+            ], alpha=0.3, color='lightgreen', label='Producer Surplus Gain')
+            ax_eq.add_patch(ps_polygon)
 
-            # 无谓损失 (三角形)
-            if dwl > 0:
-                triangle_dwl = plt.Polygon([[800, p1], [900, p0], [1000, p0]], alpha=0.3, color='purple', label='Deadweight Loss')
-                ax_eq.add_patch(triangle_dwl)
+            # 【3. 政府关税收入 Government Revenue（深绿）矩形】
+            # 区域: (Qs, Pt) → (Qd, Pt) → (Qd, P0) → (Qs, P0) → (Qs, Pt)
+            if Qd > Qs:
+                gov_rect = plt.Polygon([
+                    [Qs, Pt],
+                    [Qd, Pt],
+                    [Qd, P0],
+                    [Qs, P0],
+                    [Qs, Pt]
+                ], alpha=0.5, color='darkgreen', label='Government Revenue')
+                ax_eq.add_patch(gov_rect)
+
+            # 【4. 无谓损失 Deadweight Loss（紫色，两个三角形）】
+            # ① 生产扭曲损失（左侧三角形）
+            # (Q0, P0) → (Qs, Pt) → (Qs, P0) → (Q0, P0)
+            if Qs < Q0:
+                dwl1_polygon = plt.Polygon([
+                    [Q0, P0],
+                    [Qs, Pt],
+                    [Qs, P0],
+                    [Q0, P0]
+                ], alpha=0.4, color='purple', label='Deadweight Loss (Production)')
+                ax_eq.add_patch(dwl1_polygon)
+
+            # ② 消费扭曲损失（右侧三角形）
+            # (Q0, P0) → (Qd, Pt) → (Qd, P0) → (Q0, P0)
+            if Qd < Q0:
+                dwl2_polygon = plt.Polygon([
+                    [Q0, P0],
+                    [Qd, Pt],
+                    [Qd, P0],
+                    [Q0, P0]
+                ], alpha=0.4, color='purple')
+                ax_eq.add_patch(dwl2_polygon)
 
             ax_eq.set_xlabel('Quantity', fontsize=12)
             ax_eq.set_ylabel('Price (CNY)', fontsize=12)
@@ -821,7 +870,7 @@ if st.button("Calculate / 开始计算", type="primary"):
             ax_eq.legend(loc='upper right', fontsize=9)
             ax_eq.grid(True, alpha=0.3)
             ax_eq.set_xlim(0, 1500)
-            ax_eq.set_ylim(0, max(p1*1.5, p0*1.5))
+            ax_eq.set_ylim(0, max(Pt * 1.3, P0 * 1.3))
 
             st.pyplot(fig_eq, use_container_width=True)
             plt.close(fig_eq)
