@@ -13,6 +13,8 @@ from datetime import datetime
 from modules.calculator import TariffCalculator
 from modules.chart_generator import ChartGenerator
 from modules.exporter import Exporter
+import matplotlib
+matplotlib.use('Agg')  # 非交互式后端，适合Streamlit
 
 # 页面配置
 st.set_page_config(
