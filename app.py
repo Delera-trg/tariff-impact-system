@@ -134,6 +134,13 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(220,38,38,0.4) !important;
     }
 
+    /* 强制所有主要按钮文字为白色 */
+    .stButton > button[kind="primary"],
+    div.stButton > button[kind="primary"],
+    button[data-baseweb="button"] {
+        color: #FFFFFF !important;
+    }
+
     /* ===== 选项卡样式 ===== */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0.5rem;
@@ -388,8 +395,26 @@ def render_history_page(calculator):
     history = calculator.db.get_calculation_history(session_id=session_id, limit=50)
 
     if not history:
-        st.info("No calculation history found")
-        st.markdown("Please run a tariff impact calculation first. The system will automatically save your history.")
+        # 显示欢迎信息和提示
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 12px; padding: 30px; margin: 20px 0; color: white; text-align: center;">
+            <h3 style="margin-bottom: 15px; color: white;">📊 Welcome to History Page</h3>
+            <p style="font-size: 16px; color: white;">No calculation history found.</p>
+            <p style="font-size: 14px; color: rgba(255,255,255,0.9);">Please run a tariff impact calculation in the "Tariff Calculation" tab first.</p>
+            <p style="font-size: 14px; color: rgba(255,255,255,0.9); margin-top: 10px;">The system will automatically save your calculation history here.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 提示用户去计算
+        st.markdown("### Quick Start")
+        st.markdown("""
+        1. Go to **Tariff Calculation** tab
+        2. Set your tariff parameters in the left sidebar
+        3. Click the **Calculate** button
+        4. Your calculation will be automatically saved to history
+        5. Return to this page to view your history
+        """)
         return
 
     # Action buttons
@@ -476,6 +501,16 @@ def render_sensitivity_page(calculator):
     st.markdown("## Sensitivity Analysis")
     st.markdown("Analyze the impact of different tariff rates on prices and welfare effects")
 
+    # 显示欢迎/说明信息
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                border-radius: 12px; padding: 20px; margin: 15px 0; color: white;">
+        <h4 style="margin-bottom: 10px; color: white;">📈 Sensitivity Analysis</h4>
+        <p style="font-size: 14px; color: rgba(255,255,255,0.95);">This analysis shows how prices and welfare effects change across different tariff rates.</p>
+        <p style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 8px;">Set your parameters below and click <b>"Run Sensitivity Analysis"</b> to see the results.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
     # Get industry list
     industries = calculator.get_supported_industries()
     industry_options = {f"{ind['hs_code']} - {ind['name']}": ind['hs_code'] for ind in industries}
@@ -501,6 +536,15 @@ def render_sensitivity_page(calculator):
         pt2 = st.slider("Wholesale->Retail Pass-Through", 0.0, 1.0, 0.7, 0.05)
     with col3:
         elasticity = st.number_input("Demand Elasticity", 0.1, 5.0, 1.0, 0.1, key="sensitivity_elasticity")
+
+    # 强制按钮文字为白色
+    st.markdown("""
+    <style>
+    div.stButton > button[kind="primary"] {
+        color: #FFFFFF !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     if st.button("Run Sensitivity Analysis", type="primary"):
         with st.spinner("Calculating..."):
