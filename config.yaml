@@ -1,0 +1,44 @@
+# 关税冲击测算系统配置文件
+
+# 应用设置
+app:
+  name: "中国商品价格传导与关税冲击测算系统"
+  version: "1.0.0"
+  debug: true
+
+# 数据库设置
+database:
+  path: "data/industries.db"
+  backup_path: "data/industries_backup.db"
+
+# Stata设置
+stata:
+  # 可选: stata-mp, stata-se, stata
+  executable: "StataMP-64"
+  # 如果不在PATH中，指定完整路径
+  # windows: "C:/Program Files/Stata17/StataMP-64.exe"
+  # mac: "/Applications/Stata/StataSE.app/Contents/MacOS/stata-se"
+  timeout: 30  # 超时时间(秒)
+  path: "C:/Program Files/Stata17"  # Stata安装目录
+
+# 计算参数默认值
+calculation:
+  default_tariff_rate: 0.10
+  default_elasticity: 1.0
+  max_tariff_rate: 0.50
+  min_tariff_rate: 0.00
+
+# 传导参数默认值
+transmission:
+  default_import_to_wholesale: 0.80
+  default_wholesale_to_retail: 0.70
+
+# 导出设置
+export:
+  default_format: "xlsx"
+  output_dir: "exports"
+
+# 日志设置
+logging:
+  level: "INFO"
+  file: "logs/app.log"
