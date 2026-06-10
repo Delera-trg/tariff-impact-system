@@ -104,7 +104,7 @@ def get_params_hash(preset, hs_code, tariff_rate, pt1, pt2, elasticity):
 
 # 检测参数变化，清除缓存
 current_params_hash = get_params_hash(
-    st.session_state.get('preset', 'Custom'),
+    st.session_state.get('tariff_mode', 'Quick Presets'),
     hs_code if 'hs_code' in dir() else '',
     st.session_state.get('tariff_rate', 0),
     st.session_state.get('pt1', 0.8),
@@ -508,27 +508,56 @@ with st.sidebar:
     # ========== Parameter Settings Area ==========
     st.markdown("## Parameter Settings")
 
-    # 预设场景 - 税率联动（统一用session_state管理）
-    preset_options = ["Custom", "25%", "5%", "40%", "0%"]
-    preset = st.radio("Quick Presets / Templates", preset_options, key="preset")
+    # ========== Tariff Rate Selection Mode ==========
+    st.markdown("### Tariff Rate")
 
-    # 检测preset变化，更新session_state中的税率
-    if preset != st.session_state.get('current_preset'):
-        st.session_state.current_preset = preset
-        if preset == "25%":
-            st.session_state.tariff_rate = 0.25
-        elif preset == "5%":
-            st.session_state.tariff_rate = 0.05
-        elif preset == "40%":
-            st.session_state.tariff_rate = 0.40
-        elif preset == "0%":
-            st.session_state.tariff_rate = 0.00
-        elif preset == "Custom":
-            # 保持当前税率不变，允许用户手动修改
-            pass
+    # Top-level radio: Quick Presets vs Custom Tariff Rate
+    tariff_mode = st.radio(
+        "Select Mode",
+        ["Quick Presets", "Custom Tariff Rate"],
+        key="tariff_mode",
+        horizontal=True
+    )
 
-    # 当前使用的税率（从session_state读取）
-    current_tariff = st.session_state.tariff_rate
+    # Initialize session state for tariff rate if not exists
+    if 'tariff_rate' not in st.session_state:
+        st.session_state.tariff_rate = 0.10  # Default 10%
+
+    if tariff_mode == "Quick Presets":
+        # Show dropdown with preset tariff rates (0%, 10%, 20%, ..., 100%)
+        preset_tariff_options = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
+
+        # Get current tariff as string for selection
+        current_tariff_str = f"{int(st.session_state.tariff_rate * 100)}%"
+        if current_tariff_str not in preset_tariff_options:
+            current_tariff_str = "10%"  # Default fallback
+
+        selected_preset = st.selectbox(
+            "Preset Tariff Rate (%)",
+            preset_tariff_options,
+            index=preset_tariff_options.index(current_tariff_str),
+            key="preset_tariff_dropdown"
+        )
+
+        # Convert to decimal and store in session state
+        tariff_rate = int(selected_preset.replace("%", "")) / 100
+        st.session_state.tariff_rate = tariff_rate
+        st.markdown(f"**Current: {selected_preset}**")
+
+    else:  # Custom Tariff Rate
+        # Show number input for custom tariff (0-100 range)
+        current_tariff_value = int(st.session_state.tariff_rate * 100)
+        custom_tariff = st.number_input(
+            "Custom Tariff (%)",
+            min_value=0,
+            max_value=100,
+            value=current_tariff_value,
+            step=1,
+            key="custom_tariff_input"
+        )
+        tariff_rate = custom_tariff / 100
+        st.session_state.tariff_rate = tariff_rate
+        st.markdown(f"**Current: {custom_tariff}%**")
 
     st.markdown("---")
 
@@ -540,21 +569,6 @@ with st.sidebar:
     hs_code = industry_options[selected_industry]
     # 每次选择行业时重新获取行业详情
     industry_detail = calculator.db.get_industry_detail(hs_code=hs_code)
-
-    st.markdown("---")
-
-    # Tariff rate - unified management with session_state
-    st.markdown("### Tariff Rate")
-    if preset == "Custom":
-        # 自定义输入框 - 更新session_state
-        custom_tariff = st.number_input("Custom Tariff (%)", min_value=0, max_value=100, value=int(current_tariff * 100), step=1, key="custom_tariff_input")
-        tariff_rate = custom_tariff / 100
-        st.session_state.tariff_rate = tariff_rate  # 同步到session_state
-        st.markdown(f"**Current: {custom_tariff}%**")
-    else:
-        # 预设模式 - 使用session_state中的值
-        tariff_rate = st.session_state.tariff_rate
-        st.markdown(f"**Current: {tariff_rate*100:.0f}%**")
 
     st.markdown("---")
 
@@ -646,7 +660,7 @@ st.markdown("""
 
 # 使用session_state存储选项卡状态
 if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = "计算"
+    st.session_state.active_tab = "Calculation"
 
 # 创建导航栏样式
 st.markdown("""
@@ -751,7 +765,7 @@ if st.button("Calculate", type="primary"):
         st.session_state.calculation_result = result
         st.session_state.show_export = False
         st.session_state.last_params_hash = get_params_hash(
-            st.session_state.get('preset', 'Custom'),
+            st.session_state.get('tariff_mode', 'Quick Presets'),
             hs_code,
             tariff_rate,
             pass_through_1,
