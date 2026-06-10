@@ -117,21 +117,45 @@ st.markdown("""
     /* ===== 按钮样式 ===== */
     /* 主要按钮 - 更突出 */
     div.stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #3182CE 0%, #2B6CB0 100%);
-        border: none;
-        border-radius: 8px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        font-size: 1rem;
-        color: white;
-        width: 100%;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 8px rgba(49,130,206,0.3);
+        background: linear-gradient(135deg, #1E5AA8 0%, #1a4a8a 100%) !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.9rem 2rem !important;
+        font-weight: 600 !important;
+        font-size: 1.05rem !important;
+        color: #FFFFFF !important;
+        width: 100% !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 3px 10px rgba(30,90,168,0.35) !important;
     }
 
     div.stButton > button[kind="primary"]:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(49,130,206,0.4);
+        transform: translateY(-2px) !important;
+        box-shadow: 0 5px 15px rgba(30,90,168,0.45) !important;
+        background: linear-gradient(135deg, #1a4a8a 0%, #153d75 100%) !important;
+    }
+
+    /* ===== Ready to Analyze Section ===== */
+    .ready-section {
+        text-align: center;
+        padding: 1.5rem;
+        background: #FFFFFF;
+        border-radius: 12px;
+        border: 1px solid #E2E8F0;
+        margin: 1rem 0;
+    }
+
+    .ready-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #1A1A2E !important;
+        margin-bottom: 0.5rem;
+    }
+
+    .ready-subtitle {
+        font-size: 0.9rem;
+        color: #A0AEC0 !important;
+        margin-bottom: 1.25rem;
     }
 
     /* ===== 选项卡样式 ===== */
@@ -887,13 +911,12 @@ with tab3:
     # Sensitivity analysis content
     render_sensitivity_page(calculator)
 
-# ========== Calculate Button ==========
-st.markdown("---")
-st.markdown('<div class="result-card">', unsafe_allow_html=True)
+# ========== Calculate Button Section ==========
+st.markdown('<div class="ready-section">', unsafe_allow_html=True)
 col_calc1, col_calc2, col_calc3 = st.columns([1, 2, 1])
 with col_calc2:
-    st.markdown("### Ready to Analyze")
-    st.markdown("*Click the button below to run the tariff impact calculation*")
+    st.markdown('<p class="ready-title">Ready to Analyze</p>', unsafe_allow_html=True)
+    st.markdown('<p class="ready-subtitle">Click the button below to run the tariff impact calculation</p>', unsafe_allow_html=True)
     calculate_clicked = st.button("Calculate Tariff Impact", type="primary", use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
