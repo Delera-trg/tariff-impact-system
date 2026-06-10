@@ -23,42 +23,173 @@ st.set_page_config(
     layout="wide"
 )
 
-# 自定义CSS - 确保高对比度
+# 自定义CSS - 优化UI布局和样式
 st.markdown("""
 <style>
-    /* 强制黑色文字 */
-    * { color: #000000 !important; }
-
+    /* ===== 基础样式 ===== */
     /* 白色背景 */
-    .stApp { background-color: #FFFFFF; }
+    .stApp { background-color: #FAFBFC; }
 
     /* 侧边栏 */
-    section[data-testid="stSidebar"] { background-color: #F0F0F0; }
+    section[data-testid="stSidebar"] { background-color: #F4F6F8; }
 
-    /* 提示框样式 - 黑色文字 */
+    /* ===== 标题层级 ===== */
+    /* 主标题 */
+    h1 {
+        color: #1A1A2E !important;
+        font-weight: 700 !important;
+        font-size: 2rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* 章节标题 */
+    h2 {
+        color: #2D3748 !important;
+        font-weight: 600 !important;
+        font-size: 1.5rem !important;
+        margin-top: 1.5rem !important;
+        margin-bottom: 0.75rem !important;
+        border-bottom: 2px solid #E2E8F0;
+        padding-bottom: 0.5rem;
+    }
+
+    /* 子章节标题 */
+    h3 {
+        color: #4A5568 !important;
+        font-weight: 600 !important;
+        font-size: 1.15rem !important;
+        margin-top: 1rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* 描述文字 - 灰色调 */
+    .stMarkdown p, .stText, p {
+        color: #718096 !important;
+        font-size: 0.95rem !important;
+        line-height: 1.6 !important;
+    }
+
+    /* ===== 卡片组件 ===== */
+    /* 结果卡片 */
+    .result-card {
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #E2E8F0;
+    }
+
+    /* 图表卡片 */
+    .chart-card {
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        border: 1px solid #E2E8F0;
+    }
+
+    /* 指标卡片 */
+    .metric-card {
+        background: #FFFFFF;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        border: 1px solid #E2E8F0;
+        text-align: center;
+    }
+
+    /* ===== 侧边栏样式 ===== */
+    /* 侧边栏标题 */
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3 {
+        color: #2D3748 !important;
+    }
+
+    /* 侧边栏分隔线 */
+    section[data-testid="stSidebar"] hr {
+        border-color: #CBD5E0;
+        margin: 1rem 0;
+    }
+
+    /* ===== 按钮样式 ===== */
+    /* 主要按钮 - 更突出 */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #3182CE 0%, #2B6CB0 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        font-size: 1rem;
+        color: white;
+        width: 100%;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(49,130,206,0.3);
+    }
+
+    div.stButton > button[kind="primary"]:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(49,130,206,0.4);
+    }
+
+    /* ===== 选项卡样式 ===== */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px 8px 0 0;
+        padding: 0.75rem 1.5rem;
+        font-weight: 500;
+    }
+
+    /* ===== 数据框样式 ===== */
+    .stDataFrame {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    /* ===== 提示框样式 ===== */
     .info-box {
-        background-color: #E6F3FF;
-        border-left: 4px solid #0066CC;
-        padding: 12px;
-        margin: 8px 0;
+        background-color: #EBF8FF;
+        border-left: 4px solid #3182CE;
+        padding: 12px 16px;
+        margin: 12px 0;
+        border-radius: 0 8px 8px 0;
     }
 
     .warning-box {
-        background-color: #FFF3CD;
-        border-left: 4px solid #FF9900;
-        padding: 12px;
-        margin: 8px 0;
+        background-color: #FEFCBF;
+        border-left: 4px solid #D69E2E;
+        padding: 12px 16px;
+        margin: 12px 0;
+        border-radius: 0 8px 8px 0;
     }
 
     .success-box {
-        background-color: #D4EDDA;
-        border-left: 4px solid #28A745;
-        padding: 12px;
-        margin: 8px 0;
+        background-color: #C6F6D5;
+        border-left: 4px solid #38A169;
+        padding: 12px 16px;
+        margin: 12px 0;
+        border-radius: 0 8px 8px 0;
     }
 
-    /* 标题 */
-    h1, h2, h3 { color: #000000 !important; }
+    /* ===== 间距优化 ===== */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 2rem;
+    }
+
+    /* ===== 操作步骤条 ===== */
+    .step-indicator {
+        background: linear-gradient(90deg, #F7FAFC 0%, #EDF2F7 100%);
+        padding: 14px 24px;
+        border-radius: 10px;
+        margin-bottom: 1.5rem;
+        border: 1px solid #E2E8F0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -423,26 +554,33 @@ def render_sensitivity_page(calculator):
                     "deadweight_loss": "¥{:.0f}"
                 }), use_container_width=True, hide_index=True)
 
-                # 绘制敏感性分析图表
+                # 绘制敏感性分析图表 - 包装在卡片中
                 st.markdown("### Price Sensitivity Analysis")
+
+                # Card wrapper
+                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
                 # 价格变化图 - 英文标注，X轴范围0-50%
                 import matplotlib.pyplot as plt
-                fig_price, ax = plt.subplots(figsize=(10, 5))
-                ax.plot(df['tariff_rate'], df['import_price'], marker='o', label='Import Price')
-                ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', label='Wholesale Price')
-                ax.plot(df['tariff_rate'], df['retail_price'], marker='^', label='Retail Price')
-                ax.set_xlabel('Tariff Rate (%)')
-                ax.set_ylabel('Price (CNY)')
-                ax.set_title('Tariff Rate vs Price Changes')
+                fig_price, ax = plt.subplots(figsize=(12, 6))
+                ax.plot(df['tariff_rate'], df['import_price'], marker='o', markersize=8, linewidth=2.5, label='Import Price')
+                ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', markersize=8, linewidth=2.5, label='Wholesale Price')
+                ax.plot(df['tariff_rate'], df['retail_price'], marker='^', markersize=8, linewidth=2.5, label='Retail Price')
+                ax.set_xlabel('Tariff Rate (%)', fontsize=13, fontweight='bold')
+                ax.set_ylabel('Price (CNY)', fontsize=13, fontweight='bold')
+                ax.set_title('Tariff Rate vs Price Changes', fontsize=15, fontweight='bold', pad=10)
                 ax.set_xlim(0, 50)
-                ax.legend()
-                ax.grid(True, alpha=0.3)
+                ax.legend(fontsize=11, loc='best')
+                ax.grid(True, alpha=0.3, linestyle='--')
+                ax.tick_params(axis='both', labelsize=11)
                 st.pyplot(fig_price, use_container_width=True)
                 plt.close(fig_price)  # 释放内存
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                st.markdown("### Welfare Effect Sensitivity Analysis")
+                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
                 # 福利效应图 - 使用Plotly添加hover工具提示
-                st.markdown("### Welfare Effect Sensitivity Analysis")
                 import plotly.graph_objects as go
 
                 fig_welfare = go.Figure()
@@ -473,12 +611,16 @@ def render_sensitivity_page(calculator):
                     title='Tariff Rate vs Welfare Effects',
                     xaxis_title='Tariff Rate (%)',
                     yaxis_title='Amount (CNY)<br><sup>(Unit: CNY, negative values indicate welfare reduction)</sup>',
-                    xaxis=dict(range=[0, 50]),
-                    legend=dict(x=0, y=1, traceorder='normal'),
-                    hovermode='x unified'
+                    xaxis=dict(range=[0, 50], tickfont=dict(size=12)),
+                    yaxis=dict(tickfont=dict(size=12)),
+                    legend=dict(x=0, y=1, traceorder='normal', font=dict(size=12)),
+                    hovermode='x unified',
+                    font=dict(size=12),
+                    height=450
                 )
 
                 st.plotly_chart(fig_welfare, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
                 # Export results
                 st.markdown("### Export Analysis Results")
@@ -745,8 +887,17 @@ with tab3:
     # Sensitivity analysis content
     render_sensitivity_page(calculator)
 
-# 计算按钮
-if st.button("Calculate", type="primary"):
+# ========== Calculate Button ==========
+st.markdown("---")
+st.markdown('<div class="result-card">', unsafe_allow_html=True)
+col_calc1, col_calc2, col_calc3 = st.columns([1, 2, 1])
+with col_calc2:
+    st.markdown("### Ready to Analyze")
+    st.markdown("*Click the button below to run the tariff impact calculation*")
+    calculate_clicked = st.button("Calculate Tariff Impact", type="primary", use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+if calculate_clicked:
     with st.spinner("Calculating..."):
         # 获取当前价格调整系数
         current_price_factor = st.session_state.get('price_factor', 1.0)
@@ -778,8 +929,13 @@ if st.button("Calculate", type="primary"):
             session_id = st.session_state.get("session_id", "default")
             calculator.db.save_calculation_history(result, session_id=session_id)
 
-            # 价格变化
+            # ========== Results Section with Cards ==========
             st.markdown("## Calculation Results")
+
+            # Card 1: Price Changes Table
+            st.markdown('<div class="result-card">', unsafe_allow_html=True)
+            st.markdown("### Price Changes Across Supply Chain")
+            st.markdown("*Impact of tariff on import, wholesale, and retail prices*")
 
             price = result["price_changes"]
             welfare = result["welfare_effects"]
@@ -795,8 +951,14 @@ if st.button("Calculate", type="primary"):
                 "Change Rate": [f"{price['import']['change_rate']:.2f}%", f"{price['wholesale']['change_rate']:.2f}%", f"{price['retail']['change_rate']:.2f}%"]
             })
             st.dataframe(df.style.format({"Before Tax": "¥{:.2f}", "After Tax": "¥{:.2f}", "Change": "¥{:.2f}"}), use_container_width=True, hide_index=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown("")
+
+            # Card 2: Welfare Effects
+            st.markdown('<div class="result-card">', unsafe_allow_html=True)
+            st.markdown("### Welfare Effects Analysis")
+            st.markdown("*Economic impact on consumers, producers, and government*")
 
             # 福利效应 - 英文标注
             col1, col2, col3, col4 = st.columns(4)
@@ -804,9 +966,14 @@ if st.button("Calculate", type="primary"):
             with col2: st.metric("Producer Surplus Change", format_currency(welfare.get("producer_surplus_change", 0)), delta_color="inverse")
             with col3: st.metric("Government Revenue", format_currency(welfare.get("government_revenue", 0)))
             with col4: st.metric("Deadweight Loss", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            # 局部均衡供需图 - 严格按坐标绘制
+            st.markdown("")
+
+            # Card 3: Supply-Demand Equilibrium Chart
+            st.markdown('<div class="chart-card">', unsafe_allow_html=True)
             st.markdown("### Supply-Demand Equilibrium Analysis")
+            st.markdown("*Visual representation of tariff impact on market welfare*")
             import matplotlib.pyplot as plt
             import numpy as np
 
@@ -825,7 +992,7 @@ if st.button("Calculate", type="primary"):
             Qd = max(0, min(Qd, 1500))
             Qs = max(0, min(Qs, 1500))
 
-            fig_eq, ax_eq = plt.subplots(figsize=(10, 6))
+            fig_eq, ax_eq = plt.subplots(figsize=(12, 7))
 
             # 绘制供需曲线
             q_range = np.linspace(0, 1500, 100)
@@ -834,16 +1001,16 @@ if st.button("Calculate", type="primary"):
             # 供给曲线: P = 4000 + 4Q
             p_supply = 4000 + 4 * q_range
 
-            ax_eq.plot(q_range, p_demand, 'b-', label='Demand Curve', linewidth=2)
-            ax_eq.plot(q_range, p_supply, 'r-', label='Supply Curve', linewidth=2)
+            ax_eq.plot(q_range, p_demand, 'b-', label='Demand Curve', linewidth=2.5)
+            ax_eq.plot(q_range, p_supply, 'r-', label='Supply Curve', linewidth=2.5)
 
             # 初始均衡点
             ax_eq.axvline(x=Q0, color='gray', linestyle='--', alpha=0.5)
             ax_eq.axhline(y=P0, color='gray', linestyle='--', alpha=0.5)
-            ax_eq.plot(Q0, P0, 'go', markersize=10, label=f'Initial Equilibrium (Q={Q0}, P={P0})')
+            ax_eq.plot(Q0, P0, 'go', markersize=12, label=f'Initial Equilibrium (Q={Q0}, P={P0})')
 
             # 税后价格线
-            ax_eq.axhline(y=Pt, color='orange', linestyle='--', linewidth=2, label=f'Price After Tariff (P={Pt})')
+            ax_eq.axhline(y=Pt, color='orange', linestyle='--', linewidth=2.5, label=f'Price After Tariff (P={Pt})')
 
             # 【1. 消费者剩余损失 Consumer Surplus Loss（粉色）】
             # 区域: (0, Pt) → (Qd, Pt) → (Q0, P0) → (0, P0) → (0, Pt)
@@ -900,14 +1067,19 @@ if st.button("Calculate", type="primary"):
                 ], alpha=0.4, color='plum')
                 ax_eq.add_patch(dwl2_polygon)
 
-            ax_eq.set_xlabel('Quantity', fontsize=12)
-            ax_eq.set_ylabel('Price (CNY)', fontsize=12)
-            ax_eq.set_title('Partial Equilibrium: Tariff Impact on Welfare', fontsize=14)
-            ax_eq.legend(loc='upper right', fontsize=9)
-            ax_eq.grid(True, alpha=0.3)
+            # 放大字体
+            ax_eq.set_xlabel('Quantity', fontsize=14, fontweight='bold')
+            ax_eq.set_ylabel('Price (CNY)', fontsize=14, fontweight='bold')
+            ax_eq.set_title('Partial Equilibrium: Tariff Impact on Welfare', fontsize=16, fontweight='bold', pad=15)
+            ax_eq.legend(loc='upper right', fontsize=11, framealpha=0.9)
+            ax_eq.grid(True, alpha=0.3, linestyle='--')
             ax_eq.set_xlim(0, 1500)
             ax_eq.set_ylim(0, max(Pt * 1.3, P0 * 1.3))
 
+            # 调整刻度字体大小
+            ax_eq.tick_params(axis='both', labelsize=12)
+
             st.pyplot(fig_eq, use_container_width=True)
             plt.close(fig_eq)
+            st.markdown('</div>', unsafe_allow_html=True)
 
