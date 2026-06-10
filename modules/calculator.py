@@ -81,6 +81,11 @@ class TariffCalculator:
         # 4. 获取基准价格（应用价格调整系数）
         base_price = custom_params.get("base_price") if custom_params else industry["base_price"]
         price_factor = custom_params.get("price_factor") if custom_params else 1.0
+        # 确保price_factor是数字类型
+        try:
+            price_factor = float(price_factor) if price_factor else 1.0
+        except (ValueError, TypeError):
+            price_factor = 1.0
         # 应用调整系数
         base_price = base_price * price_factor
 
