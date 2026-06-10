@@ -89,6 +89,32 @@ def init_session_state():
 
 init_session_state()
 
+# 清理缓存逻辑 - 确保每次计算都是最新结果
+# 通过在session_state中记录参数哈希来检测参数变化
+def get_params_hash(preset, hs_code, tariff_rate, pt1, pt2, elasticity):
+    """生成参数哈希，用于检测参数变化"""
+    import hashlib
+    params_str = f"{preset}|{hs_code}|{tariff_rate}|{pt1}|{pt2}|{elasticity}"
+    return hashlib.md5(params_str.encode()).hexdigest()
+
+# 检测参数变化，清除缓存
+current_params_hash = get_params_hash(
+    st.session_state.get('preset', 'Custom'),
+    hs_code if 'hs_code' in dir() else '',
+    st.session_state.get('tariff_rate', 0),
+    st.session_state.get('pt1', 0.8),
+    st.session_state.get('pt2', 0.7),
+    st.session_state.get('elasticity', 1.0)
+)
+
+if 'last_params_hash' not in st.session_state:
+    st.session_state.last_params_hash = ''
+
+if current_params_hash != st.session_state.last_params_hash:
+    # 参数变化，清除缓存的计算结果
+    st.session_state.calculation_result = None
+    st.session_state.last_params_hash = current_params_hash
+
 def render_guide():
     """渲染交互式新手引导"""
     if not st.session_state.show_guide or st.session_state.guided:
@@ -395,32 +421,34 @@ def render_sensitivity_page(calculator):
                 # 绘制敏感性分析图表
                 st.markdown("### 价格敏感性分析")
 
-                # 价格变化图
+                # 价格变化图 - 英文标注
                 import matplotlib.pyplot as plt
+                import time
+                unique_key = int(time.time() * 1000)  # 动态唯一key
                 fig_price, ax = plt.subplots(figsize=(10, 5))
-                ax.plot(df['tariff_rate'], df['import_price'], marker='o', label='进口价')
-                ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', label='批发价')
-                ax.plot(df['tariff_rate'], df['retail_price'], marker='^', label='零售价')
-                ax.set_xlabel('关税税率 (%)')
-                ax.set_ylabel('价格 (¥)')
-                ax.set_title('关税税率 vs 价格变化')
+                ax.plot(df['tariff_rate'], df['import_price'], marker='o', label='Import Price')
+                ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', label='Wholesale Price')
+                ax.plot(df['tariff_rate'], df['retail_price'], marker='^', label='Retail Price')
+                ax.set_xlabel('Tariff Rate (%)')
+                ax.set_ylabel('Price (CNY)')
+                ax.set_title('Tariff Rate vs Price Changes')
                 ax.legend()
                 ax.grid(True, alpha=0.3)
-                st.pyplot(fig_price)
+                st.pyplot(fig_price, key=f"price_chart_{unique_key}")
 
-                # 福利效应图
-                st.markdown("### 福利效应敏感性分析")
+                # 福利效应图 - 英文标注
+                st.markdown("### Welfare Effect Sensitivity Analysis")
                 fig_welfare, ax2 = plt.subplots(figsize=(10, 5))
-                ax2.plot(df["tariff_rate"], df["consumer_surplus"], marker='o', label='消费者剩余变化')
-                ax2.plot(df["tariff_rate"], df["producer_surplus"], marker='s', label='生产者剩余变化')
-                ax2.plot(df["tariff_rate"], df["government_revenue"], marker='^', label='政府关税收入')
-                ax2.plot(df["tariff_rate"], df["deadweight_loss"], marker='x', label='无谓损失')
-                ax2.set_xlabel('关税税率 (%)')
-                ax2.set_ylabel('金额 (¥)')
-                ax2.set_title('关税税率 vs 福利效应')
+                ax2.plot(df["tariff_rate"], df["consumer_surplus"], marker='o', label='Consumer Surplus Change')
+                ax2.plot(df["tariff_rate"], df["producer_surplus"], marker='s', label='Producer Surplus Change')
+                ax2.plot(df["tariff_rate"], df["government_revenue"], marker='^', label='Government Revenue')
+                ax2.plot(df["tariff_rate"], df["deadweight_loss"], marker='x', label='Deadweight Loss')
+                ax2.set_xlabel('Tariff Rate (%)')
+                ax2.set_ylabel('Amount (CNY)')
+                ax2.set_title('Tariff Rate vs Welfare Effects')
                 ax2.legend()
                 ax2.grid(True, alpha=0.3)
-                st.pyplot(fig_welfare)
+                st.pyplot(fig_welfare, key=f"welfare_chart_{unique_key}")
 
                 # 导出结果
                 st.markdown("### 导出分析结果")
@@ -450,8 +478,8 @@ with st.sidebar:
     # ========== 参数设置区域 ==========
     st.markdown("## 参数设置")
 
-    # 预设场景
-    preset = st.radio("快速场景", ["自定义", "25%", "5%", "40%", "0%"], key="preset")
+    # 预设场景 - 税率联动
+    preset = st.radio("Quick Presets", ["Custom", "25%", "5%", "40%", "0%"], key="preset")
     if preset == "25%":
         default_tariff = 25
     elif preset == "5%":
@@ -465,50 +493,58 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 行业选择
-    st.markdown("### 选择行业")
+    # 行业选择 - 参数联动
+    st.markdown("### Select Industry")
     industries = calculator.get_supported_industries()
     industry_options = {f"{ind['hs_code']} - {ind['name']}": ind['hs_code'] for ind in industries}
-    selected_industry = st.selectbox("行业", list(industry_options.keys()), 0, key="main_industry")
+    selected_industry = st.selectbox("Industry", list(industry_options.keys()), 0, key="main_industry")
     hs_code = industry_options[selected_industry]
+    # 每次选择行业时重新获取行业详情
     industry_detail = calculator.db.get_industry_detail(hs_code=hs_code)
 
     st.markdown("---")
 
     # 关税税率
-    st.markdown("### 关税税率")
+    st.markdown("### Tariff Rate")
     if preset == "自定义":
         # 自定义输入框
-        custom_tariff = st.number_input("输入自定义税率 (%)", min_value=0, max_value=100, value=default_tariff, step=1)
+        custom_tariff = st.number_input("Custom Tariff (%)", min_value=0, max_value=100, value=default_tariff, step=1, key="custom_tariff_input")
         tariff_rate = custom_tariff / 100
-        st.markdown(f"**当前: {custom_tariff}%**")
+        st.markdown(f"**Current: {custom_tariff}%**")
     else:
-        # 滑块选择
-        tariff_rate = st.slider("税率 (%)", 0, 50, default_tariff, 1) / 100
-        st.markdown(f"**当前: {tariff_rate*100:.0f}%**")
+        # 滑块选择 - 税率联动
+        tariff_rate = st.slider("Tariff Rate (%)", 0, 50, default_tariff, 1, key="tariff_slider") / 100
+        st.markdown(f"**Current: {tariff_rate*100:.0f}%**")
 
     st.markdown("---")
 
-    # 传导参数
-    st.markdown("### 传导参数")
-    pt1 = industry_detail.get("transmission_params", {}).get("import_to_wholesale", {}).get("pass_through_rate", 0.8) if industry_detail else 0.8
-    pt2 = industry_detail.get("transmission_params", {}).get("wholesale_to_retail", {}).get("pass_through_rate", 0.7) if industry_detail else 0.7
+    # 传导参数 - 从行业数据读取默认值
+    st.markdown("### 传导参数 (Pass-Through Parameters)")
+    # 从数据库获取行业特定的传导参数
+    db_pt1 = 0.8
+    db_pt2 = 0.7
+    db_elasticity = 1.0
+    if industry_detail and industry_detail.get("transmission_params"):
+        tp = industry_detail["transmission_params"]
+        db_pt1 = tp.get("import_to_wholesale", {}).get("pass_through_rate", 0.8)
+        db_pt2 = tp.get("wholesale_to_retail", {}).get("pass_through_rate", 0.7)
+        db_elasticity = tp.get("import_to_wholesale", {}).get("elasticity", 1.0)
 
-    pass_through_1 = st.slider("进口->批发传导率", 0.0, 1.0, pt1, 0.05, key="pt1")
-    pass_through_2 = st.slider("批发->零售传导率", 0.0, 1.0, pt2, 0.05, key="pt2")
-    elasticity = st.number_input("需求弹性", 0.1, 5.0, 1.0, 0.1, key="main_elasticity")
+    pass_through_1 = st.slider("Import->Wholesale Pass-Through", 0.0, 1.0, db_pt1, 0.05, key="pt1")
+    pass_through_2 = st.slider("Wholesale->Retail Pass-Through", 0.0, 1.0, db_pt2, 0.05, key="pt2")
+    elasticity = st.number_input("Demand Elasticity", 0.1, 5.0, db_elasticity, 0.1, key="main_elasticity")
 
     st.markdown("---")
 
-    # 行业信息
+    # 行业信息 - 显示从数据库读取的数据
     if industry_detail:
-        st.markdown("### 行业信息")
+        st.markdown("### Industry Info")
         st.markdown(f"""
-- HS编码: **{industry_detail['hs_code']}**
-- 进口价: ¥{industry_detail['base_price']:,.2f}
-- 批发价: ¥{industry_detail['wholesale_price']:,.2f}
-- 零售价: ¥{industry_detail['retail_price']:,.2f}
-- 当前关税: {industry_detail.get('current_tariff_rate', 0)*100:.0f}%
+- **HS Code:** {industry_detail['hs_code']}
+- **Import Price:** ¥{industry_detail['base_price']:,.2f}
+- **Wholesale Price:** ¥{industry_detail['wholesale_price']:,.2f}
+- **Retail Price:** ¥{industry_detail['retail_price']:,.2f}
+- **Current Tariff:** {industry_detail.get('current_tariff_rate', 0)*100:.0f}%
         """)
 
 # ==================== 功能选项卡 ====================
@@ -629,8 +665,8 @@ with tab3:
     render_sensitivity_page(calculator)
 
 # 计算按钮
-if st.button("开始计算", type="primary"):
-    with st.spinner("正在计算..."):
+if st.button("Calculate / 开始计算", type="primary"):
+    with st.spinner("Calculating..."):
         result = calculator.calculate(
             hs_code=hs_code,
             tariff_rate=tariff_rate,
@@ -640,9 +676,17 @@ if st.button("开始计算", type="primary"):
                 "elasticity": elasticity
             }
         )
-        # 保存计算结果到session_state
+        # 保存计算结果到session_state，并记录当前参数哈希
         st.session_state.calculation_result = result
         st.session_state.show_export = False
+        st.session_state.last_params_hash = get_params_hash(
+            st.session_state.get('preset', 'Custom'),
+            hs_code,
+            tariff_rate,
+            pass_through_1,
+            pass_through_2,
+            elasticity
+        )
 
         if result.get("success"):
             # 保存历史记录
@@ -650,29 +694,29 @@ if st.button("开始计算", type="primary"):
             calculator.db.save_calculation_history(result, session_id=session_id)
 
             # 价格变化
-            st.markdown("## 计算结果")
+            st.markdown("## Calculation Results")
 
             price = result["price_changes"]
             welfare = result["welfare_effects"]
             industry = result["industry"]
             params = result["params"]
 
-            # 结果表格
+            # 结果表格 - 英文标注
             df = pd.DataFrame({
-                "环节": ["进口", "批发", "零售"],
-                "税前价格": [price["import"]["before"], price["wholesale"]["before"], price["retail"]["before"]],
-                "税后价格": [price["import"]["after"], price["wholesale"]["after"], price["retail"]["after"]],
-                "变化额": [price["import"]["change"], price["wholesale"]["change"], price["retail"]["change"]],
-                "变化率": [f"{price['import']['change_rate']:.2f}%", f"{price['wholesale']['change_rate']:.2f}%", f"{price['retail']['change_rate']:.2f}%"]
+                "Stage": ["Import", "Wholesale", "Retail"],
+                "Before Tax": [price["import"]["before"], price["wholesale"]["before"], price["retail"]["before"]],
+                "After Tax": [price["import"]["after"], price["wholesale"]["after"], price["retail"]["after"]],
+                "Change": [price["import"]["change"], price["wholesale"]["change"], price["retail"]["change"]],
+                "Change Rate": [f"{price['import']['change_rate']:.2f}%", f"{price['wholesale']['change_rate']:.2f}%", f"{price['retail']['change_rate']:.2f}%"]
             })
-            st.dataframe(df.style.format({"税前价格": "¥{:.2f}", "税后价格": "¥{:.2f}", "变化额": "¥{:.2f}"}), use_container_width=True, hide_index=True)
+            st.dataframe(df.style.format({"Before Tax": "¥{:.2f}", "After Tax": "¥{:.2f}", "Change": "¥{:.2f}"}), use_container_width=True, hide_index=True)
 
             st.markdown("")
 
-            # 福利效应
+            # 福利效应 - 英文标注
             col1, col2, col3, col4 = st.columns(4)
-            with col1: st.metric("消费者剩余变化", format_currency(welfare.get("consumer_surplus_change", 0)), delta_color="inverse")
-            with col2: st.metric("生产者剩余变化", format_currency(welfare.get("producer_surplus_change", 0)), delta_color="inverse")
-            with col3: st.metric("政府关税收入", format_currency(welfare.get("government_revenue", 0)))
-            with col4: st.metric("无谓损失", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
+            with col1: st.metric("Consumer Surplus Change", format_currency(welfare.get("consumer_surplus_change", 0)), delta_color="inverse")
+            with col2: st.metric("Producer Surplus Change", format_currency(welfare.get("producer_surplus_change", 0)), delta_color="inverse")
+            with col3: st.metric("Government Revenue", format_currency(welfare.get("government_revenue", 0)))
+            with col4: st.metric("Deadweight Loss", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
 
