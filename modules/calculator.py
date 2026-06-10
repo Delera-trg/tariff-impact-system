@@ -79,13 +79,31 @@ class TariffCalculator:
             elasticity = transmission_params.get("import_to_wholesale", {}).get("elasticity", 1.0)
 
         # 4. 获取基准价格（应用价格调整系数）
-        base_price = custom_params.get("base_price") if custom_params else industry["base_price"]
-        price_factor = custom_params.get("price_factor") if custom_params else 1.0
-        # 确保price_factor是数字类型
-        try:
-            price_factor = float(price_factor) if price_factor else 1.0
-        except (ValueError, TypeError):
-            price_factor = 1.0
+        # 先获取行业基准价
+        industry_base_price = industry.get("base_price")
+        if industry_base_price is None:
+            industry_base_price = 8000.0  # 默认基准进口价
+
+        # 从custom_params获取或使用行业默认值
+        if custom_params and custom_params.get("base_price") is not None:
+            base_price = custom_params.get("base_price")
+        else:
+            base_price = industry_base_price
+
+        # 获取价格调整系数
+        price_factor = 1.0
+        if custom_params:
+            pf = custom_params.get("price_factor")
+            if pf is not None:
+                try:
+                    price_factor = float(pf)
+                except (ValueError, TypeError):
+                    price_factor = 1.0
+
+        # 确保base_price是有效数值
+        if base_price is None or not isinstance(base_price, (int, float)):
+            base_price = 8000.0  # 默认基准进口价
+
         # 应用调整系数
         base_price = base_price * price_factor
 
