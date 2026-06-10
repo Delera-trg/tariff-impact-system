@@ -115,30 +115,24 @@ st.markdown("""
     }
 
     /* ===== 按钮样式 ===== */
-    /* 主要按钮 - 红底白字 */
+    /* 主要按钮 - 白底蓝字 + 蓝框 */
     div.stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%) !important;
-        border: none !important;
+        background: #FFFFFF !important;
+        border: 2px solid #1976D2 !important;
         border-radius: 8px !important;
         padding: 0.75rem 2rem !important;
         font-weight: 600 !important;
         font-size: 1rem !important;
-        color: #FFFFFF !important;
+        color: #1976D2 !important;
         width: 100% !important;
         transition: all 0.2s ease !important;
-        box-shadow: 0 2px 8px rgba(220,38,38,0.3) !important;
+        box-shadow: 0 2px 8px rgba(25, 118, 210, 0.2) !important;
     }
 
     div.stButton > button[kind="primary"]:hover {
         transform: translateY(-1px) !important;
-        box-shadow: 0 4px 12px rgba(220,38,38,0.4) !important;
-    }
-
-    /* 强制所有主要按钮文字为白色 */
-    .stButton > button[kind="primary"],
-    div.stButton > button[kind="primary"],
-    button[data-baseweb="button"] {
-        color: #FFFFFF !important;
+        box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3) !important;
+        background: #E3F2FD !important;
     }
 
     /* ===== 选项卡样式 ===== */
@@ -395,14 +389,15 @@ def render_history_page(calculator):
     history = calculator.db.get_calculation_history(session_id=session_id, limit=50)
 
     if not history:
-        # 显示欢迎信息和提示
+        # 显示欢迎信息和提示 - 白底 + 深紫色文字 + 深紫色边框
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    border-radius: 12px; padding: 30px; margin: 20px 0; color: white; text-align: center;">
-            <h3 style="margin-bottom: 15px; color: white;">📊 Welcome to History Page</h3>
-            <p style="font-size: 16px; color: white;">No calculation history found.</p>
-            <p style="font-size: 14px; color: rgba(255,255,255,0.9);">Please run a tariff impact calculation in the "Tariff Calculation" tab first.</p>
-            <p style="font-size: 14px; color: rgba(255,255,255,0.9); margin-top: 10px;">The system will automatically save your calculation history here.</p>
+        <div style="background: #FFFFFF;
+                    border: 2px solid #7B1FA2;
+                    border-radius: 12px; padding: 30px; margin: 20px 0; text-align: center;">
+            <h3 style="margin-bottom: 15px; color: #7B1FA2;">📊 Welcome to History Page</h3>
+            <p style="font-size: 16px; color: #4A5568;">No calculation history found.</p>
+            <p style="font-size: 14px; color: #718096;">Please run a tariff impact calculation in the "Tariff Calculation" tab first.</p>
+            <p style="font-size: 14px; color: #718096; margin-top: 10px;">The system will automatically save your calculation history here.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -536,15 +531,6 @@ def render_sensitivity_page(calculator):
         pt2 = st.slider("Wholesale->Retail Pass-Through", 0.0, 1.0, 0.7, 0.05)
     with col3:
         elasticity = st.number_input("Demand Elasticity", 0.1, 5.0, 1.0, 0.1, key="sensitivity_elasticity")
-
-    # 强制按钮文字为白色
-    st.markdown("""
-    <style>
-    div.stButton > button[kind="primary"] {
-        color: #FFFFFF !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
     if st.button("Run Sensitivity Analysis", type="primary"):
         with st.spinner("Calculating..."):
