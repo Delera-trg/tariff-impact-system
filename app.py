@@ -793,92 +793,148 @@ def render_sensitivity_page(calculator):
                 with tab_business:
                     tariff_rates_data = [r["tariff_rate"] for r in results]
                     retail_prices = [r["retail_price"] for r in results]
+                    wholesale_prices = [r["wholesale_price"] for r in results]
                     import_prices = [r["import_price"] for r in results]
                     gr_data = [r["government_revenue"] for r in results]
 
+                    # Use the last tariff rate result for dynamic analysis (most impactful scenario)
+                    last_idx = len(results) - 1
                     P_imp0 = import_prices[0] / (1 + tariff_rates_data[0]) if tariff_rates_data[0] > 0 else import_prices[0]
+                    P_imp1 = import_prices[last_idx]
+                    P_wholesale0 = wholesale_prices[0]
+                    P_wholesale1 = wholesale_prices[last_idx]
                     P_ret0 = retail_prices[0]
+                    P_ret1 = retail_prices[last_idx]
 
-                    business_metrics = []
-                    for i, rate in enumerate(tariff_rates_data):
-                        unit_tariff = import_prices[i] - P_imp0
-                        retail_increase_pct = ((retail_prices[i] - P_ret0) / P_ret0 * 100) if P_ret0 > 0 else 0
-                        gr = gr_data[i]
+                    # Calculate derived metrics
+                    import_change = P_imp1 - P_imp0
+                    wholesale_change = P_wholesale1 - P_wholesale0
+                    retail_change = P_ret1 - P_ret0
 
-                        if retail_increase_pct <= 3:
-                            pressure = "Low"
-                        elif retail_increase_pct <= 8:
-                            pressure = "Moderate"
-                        else:
-                            pressure = "High"
+                    import_price_increase_pct = (import_change / P_imp0) * 100 if P_imp0 > 0 else 0
+                    wholesale_price_increase_pct = (wholesale_change / P_wholesale0) * 100 if P_wholesale0 > 0 else 0
+                    retail_price_increase_pct = (retail_change / P_ret0) * 100 if P_ret0 > 0 else 0
 
-                        business_metrics.append({
-                            "rate": rate,
-                            "unit_tariff": unit_tariff,
-                            "retail_increase_pct": retail_increase_pct,
-                            "gr": gr,
-                            "pressure": pressure
-                        })
+                    # Overall pass-through efficiency = retail increase / import increase
+                    overall_pass_through = (retail_price_increase_pct / import_price_increase_pct) * 100 if import_price_increase_pct > 0 else 0
 
-                    # Find optimal range (low pressure, reasonable revenue)
-                    low_pressure_rates = [m["rate"] for m in business_metrics if m["pressure"] == "Low"]
-                    moderate_pressure_rates = [m["rate"] for m in business_metrics if m["pressure"] == "Moderate"]
+                    # Cost absorption percentage = 1 - pass-through efficiency
+                    cost_absorption_pct = 100 - overall_pass_through
 
-                    # Generate business analysis
-                    st.markdown("### Cost & Pricing Pressure Analysis")
-                    st.markdown(f"Based on the sensitivity analysis with transmission coefficients α={pt1} (Import→Wholesale) and β={pt2} (Wholesale→Retail):")
+                    # Tariff revenue
+                    tariff_revenue = gr_data[last_idx]
 
-                    # Key metrics table
-                    metrics_data = []
-                    for m in business_metrics:
-                        metrics_data.append({
-                            "Tariff Rate": f"{m['rate']*100:.0f}%",
-                            "Unit Tariff Cost": f"¥{m['unit_tariff']:,.2f}",
-                            "Retail Price Increase": f"{m['retail_increase_pct']:.2f}%",
-                            "Pressure Level": m['pressure']
-                        })
+                    # Revenue efficiency = tariff revenue / retail price increase percentage
+                    revenue_efficiency = tariff_revenue / retail_price_increase_pct if retail_price_increase_pct > 0 else 0
 
-                    st.dataframe(pd.DataFrame(metrics_data), use_container_width=True, hide_index=True)
+                    # Import volume decline estimation (simplified based on elasticity)
+                    quantity_base = 1000
+                    demand_change_pct = elasticity * retail_price_increase_pct
+                    import_decline_pct = min(abs(demand_change_pct), 100)
 
-                    # Price pressure distribution
-                    low_count = sum(1 for m in business_metrics if m["pressure"] == "Low")
-                    mod_count = sum(1 for m in business_metrics if m["pressure"] == "Moderate")
-                    high_count = sum(1 for m in business_metrics if m["pressure"] == "High")
+                    # Unit tariff cost
+                    unit_tariff_cost = import_change
 
-                    st.markdown(f"**Price Pressure Distribution:** Low (≤3%): {low_count} | Moderate (3-8%): {mod_count} | High (>8%): {high_count}")
+                    # Tariff expenditure estimate
+                    tariff_expenditure = unit_tariff_cost * quantity_base
 
-                    # Recommended range
-                    st.markdown("### Recommended Tariff Range for Business")
-                    if low_pressure_rates:
-                        min_optimal = min(low_pressure_rates) * 100
-                        max_optimal = max(low_pressure_rates) * 100
-                        st.success(f"**Optimal Range: {min_optimal:.0f}% - {max_optimal:.0f}%**")
-                        st.markdown("Within this range, retail price increases remain below 3%.")
-                    elif moderate_pressure_rates:
-                        min_optimal = min(moderate_pressure_rates) * 100
-                        max_optimal = max(moderate_pressure_rates) * 100
-                        st.warning(f"**Moderate Risk Range: {min_optimal:.0f}% - {max_optimal:.0f}%**")
+                    # ========== Dynamic Conclusion Generation ==========
+
+                    # 1. Cost Pressure Level
+                    if cost_absorption_pct <= 30:
+                        cost_pressure_level = "Low"
+                        cost_pressure_desc = "Most costs are successfully passed to downstream. Profit margins remain largely unaffected."
+                    elif cost_absorption_pct <= 60:
+                        cost_pressure_level = "Medium"
+                        cost_pressure_desc = "Approximately half of the costs are borne by the company. Profit margins are under some pressure."
                     else:
-                        st.error("**High Risk: All tariff levels result in >8% price increases**")
+                        cost_pressure_level = "High"
+                        cost_pressure_desc = "Most costs cannot be passed on. Profit margins are significantly eroded."
 
-                    # Business insights
-                    st.markdown("### Key Business Insights")
+                    # 2. Market Risk Level
+                    if import_decline_pct <= 15:
+                        market_risk_level = "Low"
+                        market_risk_desc = "Import volume fluctuates slightly. Market demand remains relatively stable."
+                    elif import_decline_pct <= 40:
+                        market_risk_level = "Medium"
+                        market_risk_desc = "Import volume declines noticeably. Market demand is under pressure."
+                    else:
+                        market_risk_level = "High"
+                        market_risk_desc = "Import volume shrinks significantly. Market demand is severely insufficient."
 
-                    # Find rate with best revenue-to-pressure ratio
-                    best_efficiency_rate = None
-                    best_ratio = 0
-                    for m in business_metrics:
-                        if m["retail_increase_pct"] > 0:
-                            ratio = m["gr"] / m["retail_increase_pct"]
-                            if ratio > best_ratio:
-                                best_ratio = ratio
-                                best_efficiency_rate = m["rate"]
+                    # 3. Supply Chain Bargaining Power Assessment
+                    if overall_pass_through >= 70:
+                        bargaining_power = "Strong"
+                        bargaining_desc = "The company has strong bargaining power and can pass on most tariff costs."
+                    elif overall_pass_through >= 40:
+                        bargaining_power = "Medium"
+                        bargaining_desc = "The company has moderate bargaining power; some costs must be absorbed internally."
+                    else:
+                        bargaining_power = "Weak"
+                        bargaining_desc = "The company has weak bargaining power and struggles to pass cost pressures downstream."
 
-                    if best_efficiency_rate:
-                        st.markdown(f"- **Best Revenue Efficiency**: {best_efficiency_rate*100:.0f}% offers the best balance between revenue and price pressure.")
-                        st.markdown(f"- **Cost Transmission**: {pt1*100:.0f}% (import→wholesale), {pt2*100:.0f}% (wholesale→retail)")
+                    # 4. Comprehensive Response Strategy
+                    if cost_pressure_level == "Low" and market_risk_level == "Low":
+                        strategy = "Maintain current pricing strategy. Consider expanding import volume to capture market share."
+                    elif cost_pressure_level == "High" and market_risk_level == "High":
+                        strategy = "Recommend pausing imports temporarily. Seek alternative suppliers or adjust product mix."
+                    elif cost_pressure_level == "High":
+                        strategy = "Focus on optimizing procurement channels while moderately raising prices to alleviate cost pressure."
+                    elif market_risk_level == "High":
+                        strategy = "Carefully control inventory. Avoid overstocking that leads to capital occupation."
+                    else:
+                        strategy = "Slight price increase + optimized procurement mix. Balance profit and market share."
 
-                    st.caption("*Note: This business analysis is for reference only.")
+                    # ========== Report Rendering ==========
+                    st.markdown("---")
+
+                    # Section 1: Cost Impact Analysis
+                    st.markdown("### 1. Cost Impact & Company Absorption Capacity")
+                    st.metric(
+                        label="Cost Absorption Rate",
+                        value=f"{cost_absorption_pct:.1f}%",
+                        delta=f"Pressure Level: {cost_pressure_level}",
+                        delta_color="inverse"
+                    )
+                    st.caption(cost_pressure_desc)
+
+                    # Section 2: Market Risk
+                    st.markdown("### 2. Market Demand & Sales Risk")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Import Volume Decline", f"{import_decline_pct:.1f}%", delta_color="inverse")
+                    with col2:
+                        st.metric("Retail Price Increase", f"{retail_price_increase_pct:.1f}%")
+                    st.caption(f"Market Risk Level: **{market_risk_level}** — {market_risk_desc}")
+
+                    # Section 3: Supply Chain Transmission Efficiency
+                    st.markdown("### 3. Supply Chain Transmission Efficiency Assessment")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Import->Retail Pass-Through", f"{overall_pass_through:.1f}%")
+                    with col2:
+                        st.metric("Wholesale Level Increase", f"{wholesale_price_increase_pct:.1f}%")
+                    with col3:
+                        st.metric("Retail Level Increase", f"{retail_price_increase_pct:.1f}%")
+                    st.caption(f"Bargaining Power: **{bargaining_power}** — {bargaining_desc}")
+
+                    # Section 4: Response Strategy
+                    st.markdown("### 4. Business Response Strategy Recommendations")
+                    st.info(f"**💡 {strategy}**")
+
+                    # Section 5: Key Data Snapshot
+                    with st.expander("📋 Key Data Snapshot (Click to Expand)", expanded=False):
+                        st.markdown(f"""
+                        | Metric | Value | Description |
+                        |--------|-------|-------------|
+                        | Unit Tariff Cost | ¥{unit_tariff_cost:,.2f} | Additional cost per unit of imported goods |
+                        | Est. Tariff Expenditure | ¥{tariff_expenditure:,.0f} | Total tariff amount company needs to pay |
+                        | Government Revenue | ¥{tariff_revenue:,.0f} | Government revenue from this tariff |
+                        | Pass-Through Efficiency | {overall_pass_through:.1f}% | Proportion of tariff cost passed to retail |
+                        | Demand Elasticity | {elasticity} | Larger values = more price-sensitive demand |
+                        """)
+
+                    st.caption("Note: This report is generated in real-time based on current parameters. Data updates automatically with parameter adjustments.")
 
                     # Export button for Business
                     st.markdown("### Export Business Results")
