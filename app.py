@@ -742,7 +742,7 @@ def render_sensitivity_page(calculator):
                             "Pressure Level": m['pressure']
                         })
 
-                    st.table(pd.DataFrame(metrics_data).to_markdown(index=False))
+                    st.dataframe(pd.DataFrame(metrics_data), use_container_width=True, hide_index=True)
 
                     # Price pressure distribution
                     low_count = sum(1 for m in business_metrics if m["pressure"] == "Low")
