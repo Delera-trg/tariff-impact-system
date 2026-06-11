@@ -657,6 +657,67 @@ def render_sensitivity_page(calculator):
 
                 # ========== Comprehensive Analysis Conclusion ==========
                 st.markdown("---")
+
+                # Add CSS styling for the conclusion module
+                st.markdown("""
+                <style>
+                    .conclusion-card {
+                        background-color: #f0f2f6;
+                        border-radius: 12px;
+                        padding: 20px;
+                        margin: 15px 0;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                        border-left: 4px solid #4CAF50;
+                    }
+                    .conclusion-card h2 {
+                        color: #2c3e50 !important;
+                        font-weight: 700 !important;
+                        font-size: 1.5rem !important;
+                        margin-bottom: 15px !important;
+                        padding-bottom: 10px;
+                        border-bottom: 2px solid #4CAF50;
+                    }
+                    .conclusion-card h3 {
+                        color: #2c3e50 !important;
+                        font-weight: 600 !important;
+                        font-size: 1.15rem !important;
+                        margin-top: 20px !important;
+                        margin-bottom: 12px !important;
+                    }
+                    .conclusion-card p, .conclusion-card li {
+                        color: #333333 !important;
+                        line-height: 1.7 !important;
+                        font-size: 0.95rem !important;
+                    }
+                    .conclusion-card ul {
+                        margin-left: 20px;
+                        list-style-type: none;
+                    }
+                    .conclusion-card ul li::before {
+                        content: "•";
+                        color: #4CAF50;
+                        font-weight: bold;
+                        display: inline-block;
+                        width: 1em;
+                        margin-left: -1em;
+                    }
+                    .conclusion-card li {
+                        margin-bottom: 8px;
+                    }
+                    .conclusion-card strong {
+                        color: #2c3e50 !important;
+                    }
+                    .conclusion-note {
+                        color: #666666 !important;
+                        font-style: italic;
+                        font-size: 0.85rem !important;
+                        margin-top: 20px !important;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # Wrap content in card container
+                st.markdown('<div class="conclusion-card">', unsafe_allow_html=True)
                 st.markdown("## Comprehensive Analysis Conclusion (English)")
 
                 # Extract data for analysis
@@ -817,7 +878,10 @@ def render_sensitivity_page(calculator):
                     """)
 
                     # Note
-                    st.caption("*Note: This conclusion is generated based solely on current model parameters and scenario assumptions. It is for reference only and does not constitute formal policy advice.*")
+                    st.markdown('<p class="conclusion-note">*Note: This conclusion is generated based solely on current model parameters and scenario assumptions. It is for reference only and does not constitute formal policy advice.*</p>', unsafe_allow_html=True)
+
+                # Close card container
+                st.markdown('</div>', unsafe_allow_html=True)
 
                 # Export results
                 st.markdown("### Export Analysis Results")
