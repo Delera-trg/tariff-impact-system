@@ -522,11 +522,15 @@ def render_sensitivity_page(calculator):
 
     # 显示欢迎/说明信息
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-                border-radius: 12px; padding: 20px; margin: 15px 0; color: white;">
-        <h4 style="margin-bottom: 10px; color: white;">📈 Sensitivity Analysis</h4>
-        <p style="font-size: 14px; color: rgba(255,255,255,0.95);">This analysis shows how prices and welfare effects change across different tariff rates.</p>
-        <p style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 8px;">Set your parameters below and click <b>"Run Sensitivity Analysis"</b> to see the results.</p>
+    <div style="background: white;
+                border: 2px solid #1b5e20;
+                border-radius: 12px;
+                padding: 20px;
+                margin: 15px 0;
+                color: #1b5e20;">
+        <h4 style="margin-bottom: 10px; color: #1b5e20;">📈 Sensitivity Analysis</h4>
+        <p style="font-size: 14px; color: #1b5e20;">This analysis shows how prices and welfare effects change across different tariff rates.</p>
+        <p style="font-size: 13px; color: #1b5e20; margin-top: 8px;">Set your parameters below and click <b>"Run Sensitivity Analysis"</b> to see the results.</p>
     </div>
     """, unsafe_allow_html=True)
 
