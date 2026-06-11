@@ -727,6 +727,7 @@ def render_sensitivity_page(calculator):
                 for i, rate in enumerate(tariff_rates_data):
                     unit_tariff = import_prices[i] - P_imp0
                     retail_increase_pct = ((retail_prices[i] - P_ret0) / P_ret0 * 100) if P_ret0 > 0 else 0
+                    gr = gr_data[i]
 
                     if retail_increase_pct <= 3:
                         pressure = "Low"
