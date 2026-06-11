@@ -1231,117 +1231,199 @@ if calculate_clicked:
 
             st.markdown("")
 
-            # Card 3: Supply-Demand Equilibrium Chart
+            # Card 3: Supply-Demand Equilibrium Chart (Plotly with hover and collapsible legend)
             st.markdown('<div class="chart-card">', unsafe_allow_html=True)
             st.markdown("### Supply-Demand Equilibrium Analysis")
             st.markdown("*Visual representation of tariff impact on market welfare*")
-            import matplotlib.pyplot as plt
+
+            import plotly.graph_objects as go
             import numpy as np
 
             # 固定关键数据点
             Q0 = 1000  # 初始均衡数量
             P0 = 8000  # 初始均衡价格（也是世界价格）
             Pt = 8800  # 固定税后价格
-            Pw = P0  # 世界价格
 
             # 需求曲线: P = 10000 - 2Q
             # 供给曲线: P = 4000 + 4Q
             Qd = (10000 - Pt) / 2  # 需求曲线与Pt的交点
             Qs = (Pt - 4000) / 4   # 供给曲线与Pt的交点
-
-            # 确保Qd和Qs在合理范围内
             Qd = max(0, min(Qd, 1500))
             Qs = max(0, min(Qs, 1500))
 
-            fig_eq, ax_eq = plt.subplots(figsize=(12, 7))
+            # 创建图表
+            fig_eq = go.Figure()
 
-            # 绘制供需曲线
+            # 需求曲线
             q_range = np.linspace(0, 1500, 100)
-            # 需求曲线: P = 10000 - 2Q
             p_demand = 10000 - 2 * q_range
-            # 供给曲线: P = 4000 + 4Q
-            p_supply = 4000 + 4 * q_range
+            fig_eq.add_trace(go.Scatter(
+                x=q_range, y=p_demand,
+                mode='lines',
+                name='Demand Curve',
+                line=dict(color='blue', width=2.5),
+                hovertemplate='Quantity: %{x:.0f}<br>Price: %{y:,.0f} CNY<extra></extra>'
+            ))
 
-            ax_eq.plot(q_range, p_demand, 'b-', label='Demand Curve', linewidth=2.5)
-            ax_eq.plot(q_range, p_supply, 'r-', label='Supply Curve', linewidth=2.5)
+            # 供给曲线
+            p_supply = 4000 + 4 * q_range
+            fig_eq.add_trace(go.Scatter(
+                x=q_range, y=p_supply,
+                mode='lines',
+                name='Supply Curve',
+                line=dict(color='red', width=2.5),
+                hovertemplate='Quantity: %{x:.0f}<br>Price: %{y:,.0f} CNY<extra></extra>'
+            ))
 
             # 初始均衡点
-            ax_eq.axvline(x=Q0, color='gray', linestyle='--', alpha=0.5)
-            ax_eq.axhline(y=P0, color='gray', linestyle='--', alpha=0.5)
-            ax_eq.plot(Q0, P0, 'go', markersize=12, label=f'Initial Equilibrium (Q={Q0}, P={P0})')
+            fig_eq.add_trace(go.Scatter(
+                x=[Q0], y=[P0],
+                mode='markers',
+                name=f'Initial Equilibrium (Q={Q0}, P={P0})',
+                marker=dict(color='green', size=14, symbol='circle'),
+                hovertemplate=f'Initial Equilibrium<br>Quantity: {Q0}<br>Price: {P0:,.0f} CNY<extra></extra>'
+            ))
 
             # 税后价格线
-            ax_eq.axhline(y=Pt, color='orange', linestyle='--', linewidth=2.5, label=f'Price After Tariff (P={Pt})')
+            fig_eq.add_hline(
+                y=Pt,
+                line_dash="dash",
+                line_color="orange",
+                line_width=2.5,
+                name=f'Price After Tariff (P={Pt})',
+                hovertemplate=f'Price After Tariff<br>Price: {Pt:,.0f} CNY<extra></extra>'
+            )
 
-            # 【1. 消费者剩余损失 Consumer Surplus Loss（粉色）】
-            # 区域: (0, Pt) → (Qd, Pt) → (Q0, P0) → (0, P0) → (0, Pt)
-            cs_polygon = plt.Polygon([
-                [0, Pt],
-                [Qd, Pt],
-                [Q0, P0],
-                [0, P0],
-                [0, Pt]
-            ], alpha=0.4, color='pink', label='Consumer Surplus Loss')
-            ax_eq.add_patch(cs_polygon)
+            # 世界价格线
+            fig_eq.add_hline(
+                y=P0,
+                line_dash="dash",
+                line_color="gray",
+                line_width=1.5,
+                name=f'World Price (P={P0})',
+                hovertemplate=f'World Price<br>Price: {P0:,.0f} CNY<extra></extra>'
+            )
 
-            # 【2. 生产者剩余增加 Producer Surplus Gain（浅绿）】
-            # 区域: (0, Pt) → (Qs, Pt) → (Q0, P0) → (0, P0) → (0, Pt)
-            ps_polygon = plt.Polygon([
-                [0, Pt],
-                [Qs, Pt],
-                [Q0, P0],
-                [0, P0],
-                [0, Pt]
-            ], alpha=0.3, color='lightgreen', label='Producer Surplus Gain')
-            ax_eq.add_patch(ps_polygon)
+            # 添加填充区域 - 消费者剩余损失 (粉色)
+            fig_eq.add_trace(go.Scatter(
+                x=[0, Qd, Q0, 0, 0],
+                y=[Pt, Pt, P0, P0, Pt],
+                fill='toself',
+                fillcolor='rgba(255, 182, 193, 0.5)',
+                line_color='rgba(255, 182, 193, 0.8)',
+                name='Consumer Surplus Loss',
+                mode='lines',
+                hovertemplate='Consumer Surplus Loss Region<br>Area: Pink<br>Click legend to toggle<extra></extra>'
+            ))
 
-            # 【3. 政府关税收入 Government Revenue（深绿）矩形】
-            # 区域: (Qs, 8000) → (Qd, 8000) → (Qd, 8800) → (Qs, 8800)
+            # 添加填充区域 - 生产者剩余增加 (浅绿)
+            fig_eq.add_trace(go.Scatter(
+                x=[0, Qs, Q0, 0, 0],
+                y=[Pt, Pt, P0, P0, Pt],
+                fill='toself',
+                fillcolor='rgba(144, 238, 144, 0.4)',
+                line_color='rgba(144, 238, 144, 0.6)',
+                name='Producer Surplus Gain',
+                mode='lines',
+                hovertemplate='Producer Surplus Gain Region<br>Area: Light Green<br>Click legend to toggle<extra></extra>'
+            ))
+
+            # 添加填充区域 - 政府关税收入 (深绿)
             if Qd > Qs:
-                gov_rect = plt.Polygon([
-                    [Qs, P0],
-                    [Qd, P0],
-                    [Qd, Pt],
-                    [Qs, Pt],
-                    [Qs, P0]
-                ], alpha=0.5, color='darkgreen', label='Government Revenue')
-                ax_eq.add_patch(gov_rect)
+                fig_eq.add_trace(go.Scatter(
+                    x=[Qs, Qd, Qd, Qs, Qs],
+                    y=[P0, P0, Pt, Pt, P0],
+                    fill='toself',
+                    fillcolor='rgba(34, 139, 34, 0.5)',
+                    line_color='rgba(34, 139, 34, 0.8)',
+                    name='Government Revenue',
+                    mode='lines',
+                    hovertemplate='Government Revenue Region<br>Area: Dark Green<br>Click legend to toggle<extra></extra>'
+                ))
 
-            # 【4. 无谓损失 Deadweight Loss（淡紫色，两个三角形）】
-            # 左侧生产扭曲损失: (Qs, 8000) → (Qs, 8800) → (1000, 8000)
+            # 无谓损失区域 (淡紫色)
             if Qs > 0:
-                dwl1_polygon = plt.Polygon([
-                    [Qs, P0],
-                    [Qs, Pt],
-                    [Q0, P0],
-                    [Qs, P0]
-                ], alpha=0.4, color='plum', label='Deadweight Loss')
-                ax_eq.add_patch(dwl1_polygon)
+                fig_eq.add_trace(go.Scatter(
+                    x=[Qs, Q0, Q0, Qs],
+                    y=[P0, P0, Pt, P0],
+                    fill='toself',
+                    fillcolor='rgba(221, 160, 221, 0.5)',
+                    line_color='rgba(221, 160, 221, 0.7)',
+                    name='Deadweight Loss (Production)',
+                    mode='lines',
+                    hovertemplate='DWL - Production Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
+                ))
 
-            # 右侧消费扭曲损失: (Qd, 8000) → (Qd, 8800) → (1000, 8000)
             if Qd < Q0:
-                dwl2_polygon = plt.Polygon([
-                    [Qd, P0],
-                    [Qd, Pt],
-                    [Q0, P0],
-                    [Qd, P0]
-                ], alpha=0.4, color='plum')
-                ax_eq.add_patch(dwl2_polygon)
+                fig_eq.add_trace(go.Scatter(
+                    x=[Qd, Q0, Q0, Qd],
+                    y=[P0, P0, Pt, P0],
+                    fill='toself',
+                    fillcolor='rgba(221, 160, 221, 0.5)',
+                    line_color='rgba(221, 160, 221, 0.7)',
+                    name='Deadweight Loss (Consumption)',
+                    mode='lines',
+                    hovertemplate='DWL - Consumption Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
+                ))
 
-            # 放大字体
-            ax_eq.set_xlabel('Quantity', fontsize=14, fontweight='bold')
-            ax_eq.set_ylabel('Price (CNY)', fontsize=14, fontweight='bold')
-            ax_eq.set_title('Partial Equilibrium: Tariff Impact on Welfare', fontsize=16, fontweight='bold', pad=15)
-            ax_eq.legend(loc='upper right', fontsize=11, framealpha=0.9)
-            ax_eq.grid(True, alpha=0.3, linestyle='--')
-            ax_eq.set_xlim(0, 1500)
-            ax_eq.set_ylim(0, max(Pt * 1.3, P0 * 1.3))
+            # 设置图表布局 - 可折叠图例
+            fig_eq.update_layout(
+                title=dict(
+                    text='Partial Equilibrium: Tariff Impact on Welfare',
+                    font=dict(size=16, color='#2c3e50')
+                ),
+                xaxis=dict(
+                    title='Quantity',
+                    titlefont=dict(size=14, color='#2c3e50'),
+                    tickfont=dict(size=12),
+                    range=[0, 1500],
+                    showgrid=True,
+                    gridcolor='rgba(0,0,0,0.1)',
+                    gridwidth=1
+                ),
+                yaxis=dict(
+                    title='Price (CNY)',
+                    titlefont=dict(size=14, color='#2c3e50'),
+                    tickfont=dict(size=12),
+                    range=[0, max(Pt * 1.3, P0 * 1.3)],
+                    showgrid=True,
+                    gridcolor='rgba(0,0,0,0.1)',
+                    gridwidth=1
+                ),
+                legend=dict(
+                    x=1.02,
+                    y=1,
+                    bgcolor='rgba(255,255,255,0.8)',
+                    bordercolor='rgba(0,0,0,0.2)',
+                    borderwidth=1,
+                    font=dict(size=10)
+                ),
+                hovermode='closest',
+                plot_bgcolor='white',
+                width=None,
+                height=450,
+                margin=dict(l=60, r=150, t=60, b=60)
+            )
 
-            # 调整刻度字体大小
-            ax_eq.tick_params(axis='both', labelsize=12)
+            st.plotly_chart(fig_eq, use_container_width=True)
 
-            st.pyplot(fig_eq, use_container_width=True)
-            plt.close(fig_eq)
+            # 添加可折叠图例说明
+            with st.expander("View/Hide Chart Legend", expanded=False):
+                st.markdown("""
+                **Chart Elements:**
+                - **Blue Line**: Demand Curve (P = 10000 - 2Q)
+                - **Red Line**: Supply Curve (P = 4000 + 4Q)
+                - **Green Dot**: Initial Equilibrium Point
+                - **Orange Dashed Line**: Price After Tariff
+                - **Gray Dashed Line**: World Price (Pre-tariff)
+                - **Pink Area**: Consumer Surplus Loss
+                - **Light Green Area**: Producer Surplus Gain
+                - **Dark Green Area**: Government Revenue
+                - **Purple Area**: Deadweight Loss (efficiency distortion)
+
+                *Hover over any element to see detailed values.*
+                """)
+
             st.markdown('</div>', unsafe_allow_html=True)
 
     # ========== Core Calculation Formulas Section ==========
