@@ -604,59 +604,58 @@ def render_sensitivity_page(calculator):
                 # Create DataFrame
                 df = pd.DataFrame(results)
 
-                # Use tabs to organize results
-                result_tabs = st.tabs([
-                    "📊 Charts & Data",
-                    "💼 Business Analysis",
-                    "🎓 Academic Conclusion",
-                    "📈 Laffer Curve Optimizer"
-                ])
+                # Export button at TOP
+                st.markdown("### Export Analysis Results")
+                file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                file_path = exporter.export_to_excel({"sensitivity_analysis": df.to_dict()}, file_name=file_name)
+                with open(file_path, "rb") as f:
+                    st.download_button("Download Excel Report", data=f, file_name=os.path.basename(file_path),
+                                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-                # ========== Tab 1: Charts & Data ==========
-                with result_tabs[0]:
-                    # Display result table
-                    st.markdown("### Analysis Results")
-                    st.dataframe(df.style.format({
-                        "tariff_rate": "{:.0f}%",
-                        "import_price": "¥{:.2f}",
-                        "wholesale_price": "¥{:.2f}",
-                        "retail_price": "¥{:.2f}",
-                        "consumer_surplus": "¥{:.0f}",
-                        "producer_surplus": "¥{:.0f}",
-                        "government_revenue": "¥{:.0f}",
-                        "deadweight_loss": "¥{:.0f}"
-                    }), use_container_width=True, hide_index=True)
+                # ========== ACADEMIC CONCLUSION SECTION ==========
+                st.markdown("---")
+                st.markdown("## ACADEMIC CONCLUSION")
 
-                    # Price chart
-                    st.markdown("### Price Sensitivity Analysis")
-                    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+                # Display result table
+                st.markdown("### Analysis Results")
+                st.dataframe(df.style.format({
+                    "tariff_rate": "{:.0f}%",
+                    "import_price": "¥{:.2f}",
+                    "wholesale_price": "¥{:.2f}",
+                    "retail_price": "¥{:.2f}",
+                    "consumer_surplus": "¥{:.0f}",
+                    "producer_surplus": "¥{:.0f}",
+                    "government_revenue": "¥{:.0f}",
+                    "deadweight_loss": "¥{:.0f}"
+                }), use_container_width=True, hide_index=True)
 
-                    import matplotlib.pyplot as plt
-                    fig_price, ax = plt.subplots(figsize=(12, 6))
-                    ax.plot(df['tariff_rate'], df['import_price'], marker='o', markersize=8, linewidth=2.5, label='Import Price')
-                    ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', markersize=8, linewidth=2.5, label='Wholesale Price')
-                    ax.plot(df['tariff_rate'], df['retail_price'], marker='^', markersize=8, linewidth=2.5, label='Retail Price')
-                    ax.set_xlabel('Tariff Rate (%)', fontsize=13, fontweight='bold')
-                    ax.set_ylabel('Price (CNY)', fontsize=13, fontweight='bold')
-                    ax.set_title('Tariff Rate vs Price Changes', fontsize=15, fontweight='bold', pad=10)
-                    ax.set_xlim(0, 50)
-                    ax.legend(fontsize=11, loc='best')
-                    ax.grid(True, alpha=0.3, linestyle='--')
-                    ax.tick_params(axis='both', labelsize=11)
-                    st.pyplot(fig_price, use_container_width=True)
-                    plt.close(fig_price)
-                    st.markdown('</div>', unsafe_allow_html=True)
+                # Price chart
+                st.markdown("### Price Sensitivity Analysis")
+                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
-                    # Welfare chart
-                    st.markdown("### Welfare Effect Sensitivity Analysis")
-                    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+                import matplotlib.pyplot as plt
+                fig_price, ax = plt.subplots(figsize=(12, 6))
+                ax.plot(df['tariff_rate'], df['import_price'], marker='o', markersize=8, linewidth=2.5, label='Import Price')
+                ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', markersize=8, linewidth=2.5, label='Wholesale Price')
+                ax.plot(df['tariff_rate'], df['retail_price'], marker='^', markersize=8, linewidth=2.5, label='Retail Price')
+                ax.set_xlabel('Tariff Rate (%)', fontsize=13, fontweight='bold')
+                ax.set_ylabel('Price (CNY)', fontsize=13, fontweight='bold')
+                ax.set_title('Tariff Rate vs Price Changes', fontsize=15, fontweight='bold', pad=10)
+                ax.set_xlim(0, 50)
+                ax.legend(fontsize=11, loc='best')
+                ax.grid(True, alpha=0.3, linestyle='--')
+                ax.tick_params(axis='both', labelsize=11)
+                st.pyplot(fig_price, use_container_width=True)
+                plt.close(fig_price)
+                st.markdown('</div>', unsafe_allow_html=True)
 
-                # 福利效应图 - 使用Plotly添加hover工具提示
+                # Welfare chart
+                st.markdown("### Welfare Effect Sensitivity Analysis")
+                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+
+                # Plotly welfare chart
                 import plotly.graph_objects as go
-
                 fig_welfare = go.Figure()
-
-                # 添加各条曲线并配置hover
                 fig_welfare.add_trace(go.Scatter(
                     x=df["tariff_rate"], y=df["consumer_surplus"],
                     mode='lines+markers', name='Consumer Surplus Change',
@@ -693,40 +692,50 @@ def render_sensitivity_page(calculator):
                 st.plotly_chart(fig_welfare, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
-                # Export button
-                st.markdown("### Export Results")
-                file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                file_path = exporter.export_to_excel({"sensitivity_analysis": df.to_dict()}, file_name=file_name)
-                with open(file_path, "rb") as f:
-                    st.download_button("Download Excel Report", data=f, file_name=os.path.basename(file_path),
-                                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                # Laffer Curve section (part of Academic)
+                st.markdown("### Optimal Tariff Rate Analysis")
+                try:
+                    from scipy.optimize import minimize_scalar
+                    base_price = industry_detail.get("base_price", 8000) if industry_detail else 8000
+                    def obj_rev(t):
+                        if t<=0 or t>=1: return float('inf')
+                        r = calculator.calculate(hs_code=hs_code, tariff_rate=t,
+                            custom_params={"base_price": base_price, "pass_through_1": pt1, "pass_through_2": pt2,
+                                          "elasticity": elasticity, "supply_elasticity": supply_elasticity_sens})
+                        return -r["welfare_effects"]["government_revenue"] if r.get("success") else float('inf')
+                    res = minimize_scalar(obj_rev, bounds=(0.001, 0.5), method='bounded')
+                    if res.success:
+                        st.metric("Revenue-Maximizing Rate", f"{res.x*100:.1f}%")
+                except:
+                    st.info("Optimizing...")
 
-                # ========== Tab 2: Business Analysis ==========
-                with result_tabs[1]:
-                    st.markdown("## Business-oriented Analysis")
+                st.caption("*Academic analysis.*")
 
-                    tariff_rates_data = [r["tariff_rate"] for r in results]
-                    retail_prices = [r["retail_price"] for r in results]
-                    import_prices = [r["import_price"] for r in results]
-                    gr_data = [r["government_revenue"] for r in results]
+                # ========== BUSINESS ANALYSIS SECTION ==========
+                st.markdown("---")
+                st.markdown("## BUSINESS ANALYSIS")
 
-                    P_imp0 = import_prices[0] / (1 + tariff_rates_data[0]) if tariff_rates_data[0] > 0 else import_prices[0]
-                    P_ret0 = retail_prices[0]
+                tariff_rates_data = [r["tariff_rate"] for r in results]
+                retail_prices = [r["retail_price"] for r in results]
+                import_prices = [r["import_price"] for r in results]
+                gr_data = [r["government_revenue"] for r in results]
 
-                    business_metrics = []
-                    for i, rate in enumerate(tariff_rates_data):
-                        unit_tariff = import_prices[i] - P_imp0
-                        retail_increase_pct = ((retail_prices[i] - P_ret0) / P_ret0 * 100) if P_ret0 > 0 else 0
-                        gr = gr_data[i]
+                P_imp0 = import_prices[0] / (1 + tariff_rates_data[0]) if tariff_rates_data[0] > 0 else import_prices[0]
+                P_ret0 = retail_prices[0]
 
-                        if retail_increase_pct <= 3:
-                            pressure = "Low"
-                        elif retail_increase_pct <= 8:
-                            pressure = "Moderate"
-                        else:
-                            pressure = "High"
+                business_metrics = []
+                for i, rate in enumerate(tariff_rates_data):
+                    unit_tariff = import_prices[i] - P_imp0
+                    retail_increase_pct = ((retail_prices[i] - P_ret0) / P_ret0 * 100) if P_ret0 > 0 else 0
 
-                        business_metrics.append({
+                    if retail_increase_pct <= 3:
+                        pressure = "Low"
+                    elif retail_increase_pct <= 8:
+                        pressure = "Moderate"
+                    else:
+                        pressure = "High"
+
+                    business_metrics.append({
                             "rate": rate,
                             "unit_tariff": unit_tariff,
                             "retail_increase_pct": retail_increase_pct,
