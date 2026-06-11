@@ -490,6 +490,36 @@ def render_history_page(calculator):
             dwl = record.get('deadweight_loss') or 0
             st.metric("Deadweight Loss", f"¥{dwl:+,.0f}", delta_color="inverse")
 
+        # Business Summary
+        st.markdown("#### Business Summary")
+
+        # Calculate retail price increase percentage
+        retail_before = record.get('retail_before') or 0
+        retail_after = record.get('retail_after') or 0
+        if retail_before > 0:
+            retail_increase_pct = (retail_after - retail_before) / retail_before * 100
+        else:
+            retail_increase_pct = 0
+
+        # Determine pressure level
+        if retail_increase_pct <= 3:
+            pressure_level = "Low"
+            pressure_color = "green"
+        elif retail_increase_pct <= 8:
+            pressure_level = "Moderate"
+            pressure_color = "orange"
+        else:
+            pressure_level = "High"
+            pressure_color = "red"
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Tariff Rate", f"{tariff_val*100:.1f}%")
+        with col2:
+            st.metric("Retail Price Increase", f"{retail_increase_pct:.2f}%", delta_color="inverse" if retail_increase_pct > 0 else "normal")
+
+        st.markdown(f"**Price Pressure Level:** :{pressure_color}[{pressure_level}]")
+
 
 # ==================== Sensitivity Analysis Page ====================
 def render_sensitivity_page(calculator):
@@ -654,6 +684,119 @@ def render_sensitivity_page(calculator):
 
                 st.plotly_chart(fig_welfare, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
+
+                # ========== Business-oriented Analysis ==========
+                st.markdown("---")
+                st.markdown("## Business-oriented Analysis")
+
+                # Business metrics analysis based on sensitivity data
+                if results:
+                    tariff_rates_data = [r["tariff_rate"] for r in results]
+                    retail_prices = [r["retail_price"] for r in results]
+                    import_prices = [r["import_price"] for r in results]
+                    gr_data = [r["government_revenue"] for r in results]
+
+                    # Calculate key business metrics for each tariff rate
+                    P_imp0 = import_prices[0] / (1 + tariff_rates_data[0]) if tariff_rates_data[0] > 0 else import_prices[0]
+                    P_ret0 = retail_prices[0]
+
+                    business_metrics = []
+                    for i, rate in enumerate(tariff_rates_data):
+                        unit_tariff = import_prices[i] - P_imp0
+                        retail_increase_pct = ((retail_prices[i] - P_ret0) / P_ret0 * 100) if P_ret0 > 0 else 0
+                        gr = gr_data[i]
+
+                        # Determine price pressure level
+                        if retail_increase_pct <= 3:
+                            pressure = "Low"
+                        elif retail_increase_pct <= 8:
+                            pressure = "Moderate"
+                        else:
+                            pressure = "High"
+
+                        business_metrics.append({
+                            "rate": rate,
+                            "unit_tariff": unit_tariff,
+                            "retail_increase_pct": retail_increase_pct,
+                            "gr": gr,
+                            "pressure": pressure
+                        })
+
+                    # Find optimal range (low pressure, reasonable revenue)
+                    low_pressure_rates = [m["rate"] for m in business_metrics if m["pressure"] == "Low"]
+                    moderate_pressure_rates = [m["rate"] for m in business_metrics if m["pressure"] == "Moderate"]
+
+                    # Generate business analysis
+                    st.markdown("### Cost & Pricing Pressure Analysis")
+                    st.markdown(f"""
+                    Based on the sensitivity analysis with transmission coefficients alpha={pt1} and beta={pt2}:
+                    """)
+
+                    # Key metrics table
+                    metrics_data = []
+                    for m in business_metrics:
+                        metrics_data.append({
+                            "Tariff Rate": f"{m['rate']*100:.0f}%",
+                            "Unit Tariff Cost": f"¥{m['unit_tariff']:,.2f}",
+                            "Retail Price Increase": f"{m['retail_increase_pct']:.2f}%",
+                            "Pressure Level": m['pressure']
+                        })
+
+                    st.table(pd.DataFrame(metrics_data).to_markdown(index=False))
+
+                    # Price pressure distribution
+                    low_count = sum(1 for m in business_metrics if m["pressure"] == "Low")
+                    mod_count = sum(1 for m in business_metrics if m["pressure"] == "Moderate")
+                    high_count = sum(1 for m in business_metrics if m["pressure"] == "High")
+
+                    st.markdown(f"""
+                    **Price Pressure Distribution:**
+                    - Low Pressure (≤3%): {low_count} tariff levels
+                    - Moderate Pressure (3-8%): {mod_count} tariff levels
+                    - High Pressure (>8%): {high_count} tariff levels
+                    """)
+
+                    # Recommended range
+                    st.markdown("### Recommended Tariff Range for Business")
+                    if low_pressure_rates:
+                        min_optimal = min(low_pressure_rates) * 100
+                        max_optimal = max(low_pressure_rates) * 100
+                        st.success(f"**Optimal Range: {min_optimal:.0f}% - {max_optimal:.0f}%**")
+                        st.markdown(f"""
+                        Within this range, retail price increases remain below 3%, minimizing consumer demand impact and maintaining sales volume stability.
+                        """)
+                    elif moderate_pressure_rates:
+                        min_optimal = min(moderate_pressure_rates) * 100
+                        max_optimal = max(moderate_pressure_rates) * 100
+                        st.warning(f"**Moderate Risk Range: {min_optimal:.0f}% - {max_optimal:.0f}%**")
+                        st.markdown(f"""
+                        In this range, price increases are moderate (3-8%). Consider monitoring sales volume closely as consumer demand may decline moderately.
+                        """)
+                    else:
+                        st.error("**High Risk: All tariff levels result in >8% price increases**")
+                        st.markdown("Consider alternative strategies such as cost absorption or supply chain optimization.")
+
+                    # Business insights
+                    st.markdown("### Key Business Insights")
+
+                    # Find rate with best revenue-to-pressure ratio
+                    best_efficiency_rate = None
+                    best_ratio = 0
+                    for m in business_metrics:
+                        if m["retail_increase_pct"] > 0:
+                            ratio = m["gr"] / m["retail_increase_pct"]
+                            if ratio > best_ratio:
+                                best_ratio = ratio
+                                best_efficiency_rate = m["rate"]
+
+                    if best_efficiency_rate:
+                        st.markdown(f"""
+                        - **Best Revenue Efficiency**: Tariff rate at {best_efficiency_rate*100:.0f}% offers the best balance between government revenue generation and price pressure on consumers.
+                        - **Cost Transmission**: With alpha={pt1} and beta={pt2}, approximately {pt1*100:.0f}% of tariff costs are passed to wholesale, and {pt2*100:.0f}% to retail.
+                        - **Volume Risk**: Higher tariff rates lead to import volume decline due to reduced consumer purchasing power.
+                        """)
+
+                    st.caption("*Note: This business analysis is generated based on model parameters and scenario assumptions. It is for reference only and does not constitute formal business advice.*")
 
                 # ========== Comprehensive Analysis Conclusion ==========
                 st.markdown("---")
@@ -987,10 +1130,43 @@ with st.sidebar:
         db_pt2 = tp.get("wholesale_to_retail", {}).get("pass_through_rate", 0.7)
         db_elasticity = tp.get("import_to_wholesale", {}).get("elasticity", 1.0)
 
-    pass_through_1 = st.slider("Import->Wholesale Pass-Through", 0.0, 1.0, db_pt1, 0.05, key="pt1",
-        help="Tariff cost transfer ratio: 1 = complete transfer to buyers, 0 = importer bears all costs")
-    pass_through_2 = st.slider("Wholesale->Retail Pass-Through", 0.0, 1.0, db_pt2, 0.05, key="pt2",
-        help="Tariff cost transfer ratio from wholesale to retail")
+    # Preset Market Scenario
+    st.markdown("### Preset Market Scenario")
+    scenario_options = {
+        "Custom": {"alpha": db_pt1, "beta": db_pt2},
+        "Strong Bargaining Power": {"alpha": 1.0, "beta": 1.0},
+        "Normal Market": {"alpha": 0.8, "beta": 0.7},
+        "Weak Bargaining Power": {"alpha": 0.5, "beta": 0.4}
+    }
+
+    selected_scenario = st.selectbox(
+        "Select Scenario",
+        list(scenario_options.keys()),
+        key="scenario_selectbox",
+        help="Choose a preset market scenario with typical pass-through coefficients. Select 'Custom' to manually adjust values."
+    )
+
+    if selected_scenario != "Custom":
+        default_alpha = scenario_options[selected_scenario]["alpha"]
+        default_beta = scenario_options[selected_scenario]["beta"]
+    else:
+        default_alpha = db_pt1
+        default_beta = db_pt2
+
+    st.markdown("---")
+
+    # Pass-Through Parameters with tooltips
+    st.markdown("### Pass-Through Parameters")
+    pass_through_1 = st.slider(
+        "Import->Wholesale Pass-Through (alpha)",
+        0.0, 1.0, default_alpha, 0.05, key="pt1",
+        help="Alpha: The proportion of tariff cost passed from importers to wholesale buyers. 1.0 = full pass-through (buyers bear all cost); 0.0 = importers absorb all cost. Typical range: 0.5-1.0 depending on market bargaining power."
+    )
+    pass_through_2 = st.slider(
+        "Wholesale->Retail Pass-Through (beta)",
+        0.0, 1.0, default_beta, 0.05, key="pt2",
+        help="Beta: The proportion of wholesale price change passed to retail consumers. 1.0 = full pass-through; 0.0 = retailers absorb all cost. Higher beta means greater final price impact on consumers."
+    )
     elasticity = st.number_input("Demand Elasticity (Ed)", 0.1, 5.0, db_elasticity, 0.1, key="main_elasticity",
         help="Price elasticity of demand (absolute value): 0<Ed<1 = inelastic, Ed=1 = unit elastic, Ed>1 = elastic")
     supply_elasticity = st.number_input("Supply Elasticity (Es)", 0.1, 10.0, 2.0, 0.1, key="main_supply_elasticity",
@@ -1142,6 +1318,19 @@ with tab1:
     </div>
 """, unsafe_allow_html=True)
 
+    # View Toggle
+    st.markdown("---")
+    display_view = st.radio(
+        "Select Display View",
+        ["Academic View", "Business View"],
+        index=0,
+        horizontal=True,
+        key="display_view_radio",
+        help="Academic View: Full academic analysis with welfare indicators. Business View: Simplified commercial metrics for decision-making."
+    )
+    is_business_view = (display_view == "Business View")
+    st.markdown("---")
+
 with tab2:
     # History content
     render_history_page(calculator)
@@ -1216,18 +1405,74 @@ if calculate_clicked:
 
             st.markdown("")
 
-            # Card 2: Welfare Effects
-            st.markdown('<div class="result-card">', unsafe_allow_html=True)
-            st.markdown("### Welfare Effects Analysis")
-            st.markdown("*Economic impact on consumers, producers, and government*")
+            # Card 2: Welfare Effects (Academic View Only)
+            if not is_business_view:
+                st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                st.markdown("### Welfare Effects Analysis")
+                st.markdown("*Economic impact on consumers, producers, and government*")
 
-            # 福利效应 - 英文标注
-            col1, col2, col3, col4 = st.columns(4)
-            with col1: st.metric("Consumer Surplus Change", format_currency(welfare.get("consumer_surplus_change", 0)), delta_color="inverse")
-            with col2: st.metric("Producer Surplus Change", format_currency(welfare.get("producer_surplus_change", 0)), delta_color="inverse")
-            with col3: st.metric("Government Revenue", format_currency(welfare.get("government_revenue", 0)))
-            with col4: st.metric("Deadweight Loss", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
-            st.markdown('</div>', unsafe_allow_html=True)
+                # 福利效应 - 英文标注
+                col1, col2, col3, col4 = st.columns(4)
+                with col1: st.metric("Consumer Surplus Change", format_currency(welfare.get("consumer_surplus_change", 0)), delta_color="inverse")
+                with col2: st.metric("Producer Surplus Change", format_currency(welfare.get("producer_surplus_change", 0)), delta_color="inverse")
+                with col3: st.metric("Government Revenue", format_currency(welfare.get("government_revenue", 0)))
+                with col4: st.metric("Deadweight Loss", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                # Business View: Cost & Price Analysis
+                st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                st.markdown("### Cost & Price Analysis (Business Metrics)")
+                st.markdown("*Key commercial indicators for decision-making*")
+
+                # Extract values for business metrics
+                P_imp0 = price["import"]["before"]
+                P_imp1 = price["import"]["after"]
+                P_ret0 = price["retail"]["before"]
+                delta_P_ret = price["retail"]["change"]
+                M0 = params.get("quantity_d0", 1000) - params.get("quantity_s0", 800)
+                M1 = result.get("quantity_changes", {}).get("import", {}).get("after", M0)
+                t = params.get("tariff_rate", 0.1)
+
+                # Calculate business metrics
+                unit_tariff_cost = P_imp1 - P_imp0
+                cost_increase_pct = (unit_tariff_cost / P_imp0 * 100) if P_imp0 != 0 else 0
+                tariff_expenditure = unit_tariff_cost * M1
+                retail_price_increase_pct = (delta_P_ret / P_ret0 * 100) if P_ret0 != 0 else 0
+                import_decline_pct = ((M0 - M1) / M0 * 100) if M0 != 0 else 0
+
+                # Display metrics in 4 columns
+                m1, m2, m3, m4 = st.columns(4)
+                with m1: st.metric("Unit Tariff Cost", f"¥{unit_tariff_cost:,.2f}")
+                with m2: st.metric("Import Cost Increase", f"{cost_increase_pct:.2f}%", delta_color="inverse" if cost_increase_pct > 0 else "normal")
+                with m3: st.metric("Est. Tariff Expenditure", f"¥{tariff_expenditure:,.0f}")
+                with m4: st.metric("Terminal Price Increase", f"{retail_price_increase_pct:.2f}%", delta_color="inverse" if retail_price_increase_pct > 0 else "normal")
+
+                m5, m6 = st.columns(2)
+                with m5: st.metric("Import Volume Decline", f"{import_decline_pct:.2f}%", delta_color="inverse" if import_decline_pct > 0 else "normal")
+                with m6: st.metric("Post-tariff Import Volume", f"{M1:,.0f}")
+
+                st.caption("*Note: Tariff expenditure is a simplified estimate. The system also calculates government revenue using GR = ΔP_ret × M1.")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                # Price Pressure Judgment
+                st.markdown("### Terminal Price Pressure Judgment")
+
+                if retail_price_increase_pct <= 3:
+                    pressure_judgment = "Low Price Pressure. The price increase is small. The terminal market can fully absorb the additional cost without obvious sales impact."
+                    pressure_level = "success"
+                elif retail_price_increase_pct <= 8:
+                    pressure_judgment = "Moderate Price Pressure. A slight retail price adjustment is required. Sales volume may decline moderately."
+                    pressure_level = "warning"
+                else:
+                    pressure_judgment = "High Price Pressure. The cost surge is significant. It is difficult for the terminal market to bear, and sales volume will shrink obviously."
+                    pressure_level = "error"
+
+                if pressure_level == "success":
+                    st.success(f"**Low Price Pressure**\n\n{pressure_judgment}")
+                elif pressure_level == "warning":
+                    st.warning(f"**Moderate Price Pressure**\n\n{pressure_judgment}")
+                else:
+                    st.error(f"**High Price Pressure**\n\n{pressure_judgment}")
 
             st.markdown("")
 
@@ -1318,67 +1563,69 @@ if calculate_clicked:
                 showlegend=True
             ))
 
-            # 添加填充区域 - 消费者剩余损失 (粉色)
-            fig_eq.add_trace(go.Scatter(
-                x=[0, Qd, Q0, 0, 0],
-                y=[Pt, Pt, P0, P0, Pt],
-                fill='toself',
-                fillcolor='rgba(255, 182, 193, 0.5)',
-                line_color='rgba(255, 182, 193, 0.8)',
-                name='Consumer Surplus Loss',
-                mode='lines',
-                hovertemplate='Consumer Surplus Loss Region<br>Area: Pink<br>Click legend to toggle<extra></extra>'
-            ))
-
-            # 添加填充区域 - 生产者剩余增加 (浅绿)
-            fig_eq.add_trace(go.Scatter(
-                x=[0, Qs, Q0, 0, 0],
-                y=[Pt, Pt, P0, P0, Pt],
-                fill='toself',
-                fillcolor='rgba(144, 238, 144, 0.4)',
-                line_color='rgba(144, 238, 144, 0.6)',
-                name='Producer Surplus Gain',
-                mode='lines',
-                hovertemplate='Producer Surplus Gain Region<br>Area: Light Green<br>Click legend to toggle<extra></extra>'
-            ))
-
-            # 添加填充区域 - 政府关税收入 (深绿)
-            if Qd > Qs:
+            # 添加填充区域 - 消费者剩余损失 (粉色) - Academic View Only
+            if not is_business_view:
                 fig_eq.add_trace(go.Scatter(
-                    x=[Qs, Qd, Qd, Qs, Qs],
-                    y=[P0, P0, Pt, Pt, P0],
+                    x=[0, Qd, Q0, 0, 0],
+                    y=[Pt, Pt, P0, P0, Pt],
                     fill='toself',
-                    fillcolor='rgba(34, 139, 34, 0.5)',
-                    line_color='rgba(34, 139, 34, 0.8)',
+                    fillcolor='rgba(255, 182, 193, 0.5)',
+                    line_color='rgba(255, 182, 193, 0.8)',
+                    name='Consumer Surplus Loss',
+                    mode='lines',
+                    hovertemplate='Consumer Surplus Loss Region<br>Area: Pink<br>Click legend to toggle<extra></extra>'
+                ))
+
+                # 添加填充区域 - 生产者剩余增加 (浅绿)
+                fig_eq.add_trace(go.Scatter(
+                    x=[0, Qs, Q0, 0, 0],
+                    y=[Pt, Pt, P0, P0, Pt],
+                    fill='toself',
+                    fillcolor='rgba(144, 238, 144, 0.4)',
+                    line_color='rgba(144, 238, 144, 0.6)',
+                    name='Producer Surplus Gain',
+                    mode='lines',
+                    hovertemplate='Producer Surplus Gain Region<br>Area: Light Green<br>Click legend to toggle<extra></extra>'
+                ))
+
+                # 添加填充区域 - 政府关税收入 (深绿)
+                if Qd > Qs:
+                    fig_eq.add_trace(go.Scatter(
+                        x=[Qs, Qd, Qd, Qs, Qs],
+                        y=[P0, P0, Pt, Pt, P0],
+                        fill='toself',
+                        fillcolor='rgba(34, 139, 34, 0.5)',
+                        line_color='rgba(34, 139, 34, 0.8)',
                     name='Government Revenue',
                     mode='lines',
                     hovertemplate='Government Revenue Region<br>Area: Dark Green<br>Click legend to toggle<extra></extra>'
                 ))
 
-            # 无谓损失区域 (淡紫色)
-            if Qs > 0:
-                fig_eq.add_trace(go.Scatter(
-                    x=[Qs, Q0, Q0, Qs],
-                    y=[P0, P0, Pt, P0],
-                    fill='toself',
-                    fillcolor='rgba(221, 160, 221, 0.5)',
-                    line_color='rgba(221, 160, 221, 0.7)',
-                    name='Deadweight Loss (Production)',
-                    mode='lines',
-                    hovertemplate='DWL - Production Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
-                ))
+            # 无谓损失区域 (淡紫色) - Academic View Only
+            if not is_business_view:
+                if Qs > 0:
+                    fig_eq.add_trace(go.Scatter(
+                        x=[Qs, Q0, Q0, Qs],
+                        y=[P0, P0, Pt, P0],
+                        fill='toself',
+                        fillcolor='rgba(221, 160, 221, 0.5)',
+                        line_color='rgba(221, 160, 221, 0.7)',
+                        name='Deadweight Loss (Production)',
+                        mode='lines',
+                        hovertemplate='DWL - Production Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
+                    ))
 
-            if Qd < Q0:
-                fig_eq.add_trace(go.Scatter(
-                    x=[Qd, Q0, Q0, Qd],
-                    y=[P0, P0, Pt, P0],
-                    fill='toself',
-                    fillcolor='rgba(221, 160, 221, 0.5)',
-                    line_color='rgba(221, 160, 221, 0.7)',
-                    name='Deadweight Loss (Consumption)',
-                    mode='lines',
-                    hovertemplate='DWL - Consumption Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
-                ))
+                if Qd < Q0:
+                    fig_eq.add_trace(go.Scatter(
+                        x=[Qd, Q0, Q0, Qd],
+                        y=[P0, P0, Pt, P0],
+                        fill='toself',
+                        fillcolor='rgba(221, 160, 221, 0.5)',
+                        line_color='rgba(221, 160, 221, 0.7)',
+                        name='Deadweight Loss (Consumption)',
+                        mode='lines',
+                        hovertemplate='DWL - Consumption Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
+                    ))
 
             # 设置图表布局 - 可折叠图例
             fig_eq.update_layout(
