@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 计算引擎模块 - 关税冲击测算核心逻辑
-整合数据库查询和Stata计算
+基于小国局部均衡关税模型（固定公式版本）
+
+公式来源：用户提供的固定规则、公式与约束
 """
 
 import os
@@ -17,7 +19,7 @@ class TariffCalculator:
     """
     关税冲击计算引擎
 
-    整合数据库查询和Stata计算，提供完整的关税传导分析功能
+    基于小国局部均衡关税模型，使用固定公式计算价格传导和福利效应
     """
 
     def __init__(self):
@@ -38,12 +40,12 @@ class TariffCalculator:
         """
         计算关税冲击影响（主方法）
 
-        整合数据库查询和Stata计算，返回完整的分析结果
+        使用固定公式计算关税传导效应
 
         Args:
             industry_id: 行业ID
             hs_code: HS编码（与industry_id二选一）
-            tariff_rate: 关税税率（0-1）
+            tariff_rate: 关税税率（支持负值，兼容补贴场景）
             custom_params: 自定义参数（覆盖默认值）
 
         Returns:
@@ -66,20 +68,24 @@ class TariffCalculator:
         # 3. 获取传导参数
         transmission_params = industry.get("transmission_params", {})
 
+        # 获取默认参数
+        default_pt1 = transmission_params.get("import_to_wholesale", {}).get("pass_through_rate", 0.8)
+        default_pt2 = transmission_params.get("wholesale_to_retail", {}).get("pass_through_rate", 0.7)
+        default_ed = transmission_params.get("import_to_wholesale", {}).get("elasticity", 1.0)
+
         # 合并自定义参数
         if custom_params:
-            pass_through_1 = custom_params.get("pass_through_1",
-                transmission_params.get("import_to_wholesale", {}).get("pass_through_rate", 0.8))
-            pass_through_2 = custom_params.get("pass_through_2",
-                transmission_params.get("wholesale_to_retail", {}).get("pass_through_rate", 0.7))
-            elasticity = custom_params.get("elasticity", 1.0)
+            pass_through_1 = custom_params.get("pass_through_1", default_pt1)
+            pass_through_2 = custom_params.get("pass_through_2", default_pt2)
+            elasticity_d = custom_params.get("elasticity", default_ed)  # 需求价格弹性 ε_d (<0)
+            elasticity_s = custom_params.get("supply_elasticity", 2.0)  # 供给价格弹性 ε_s (>0)
         else:
-            pass_through_1 = transmission_params.get("import_to_wholesale", {}).get("pass_through_rate", 0.8)
-            pass_through_2 = transmission_params.get("wholesale_to_retail", {}).get("pass_through_rate", 0.7)
-            elasticity = transmission_params.get("import_to_wholesale", {}).get("elasticity", 1.0)
+            pass_through_1 = default_pt1
+            pass_through_2 = default_pt2
+            elasticity_d = default_ed
+            elasticity_s = 2.0  # 默认供给弹性
 
         # 4. 获取基准价格（应用价格调整系数）
-        # 先获取行业基准价
         industry_base_price = industry.get("base_price")
         if industry_base_price is None:
             industry_base_price = 8000.0  # 默认基准进口价
@@ -102,35 +108,57 @@ class TariffCalculator:
 
         # 确保base_price是有效数值
         if base_price is None or not isinstance(base_price, (int, float)):
-            base_price = 8000.0  # 默认基准进口价
+            base_price = 8000.0
 
         # 应用调整系数
         base_price = base_price * price_factor
 
-        # 5. 调用计算（优先使用本地计算，Stata启动太慢）
-        if self.use_stata and self.stata.is_available():
-            # 使用Stata计算
-            result = self.stata.calculate_tariff_impact(
-                tariff_rate=tariff_rate,
-                base_price=base_price,
-                pass_through_1=pass_through_1,
-                pass_through_2=pass_through_2,
-                elasticity=elasticity
-            )
+        # 5. 计算基准价格链
+        # 从数据库获取批发价和零售价
+        wholesale_base = industry.get("wholesale_price")
+        retail_base = industry.get("retail_price")
+
+        if wholesale_base is None:
+            wholesale_base = base_price * 1.30  # 默认
+        if retail_base is None:
+            retail_base = base_price * 1.60  # 默认
+
+        # 应用价格调整系数
+        wholesale_base = wholesale_base * price_factor
+        retail_base = retail_base * price_factor
+
+        # 6. 获取基准数量
+        # 从custom_params或使用默认值
+        if custom_params and custom_params.get("quantity_d0") is not None:
+            quantity_d0 = custom_params.get("quantity_d0")
         else:
-            # 使用Python本地计算
-            result = self._calculate_locally(
-                tariff_rate=tariff_rate,
-                base_price=base_price,
-                pass_through_1=pass_through_1,
-                pass_through_2=pass_through_2,
-                elasticity=elasticity
-            )
+            quantity_d0 = 1000.0  # 默认基准需求量
+
+        if custom_params and custom_params.get("quantity_s0") is not None:
+            quantity_s0 = custom_params.get("quantity_s0")
+        else:
+            # 假设自给自足率，比如80%国内供给
+            quantity_s0 = quantity_d0 * 0.8
+
+        # 7. 使用固定公式计算
+        # 注意：用户输入的是需求弹性的绝对值，公式要求负值，因此需要取负
+        result = self._calculate_with_formulas(
+            tariff_rate=tariff_rate,
+            P_imp0=base_price,
+            P_wh0=wholesale_base,
+            P_ret0=retail_base,
+            alpha=pass_through_1,  # 进口→批发传导系数
+            beta=pass_through_2,   # 批发→零售传导系数
+            epsilon_d=-abs(elasticity_d),  # 需求价格弹性 (<0)，取负值
+            epsilon_s=abs(elasticity_s),  # 供给价格弹性 (>0)，取正值
+            Q_d0=quantity_d0,
+            Q_s0=quantity_s0
+        )
 
         if not result.get("success"):
             return result
 
-        # 6. 整合结果
+        # 8. 整合结果
         return {
             "success": True,
             "industry": {
@@ -145,75 +173,192 @@ class TariffCalculator:
                 "price_factor": price_factor,
                 "pass_through_1": pass_through_1,
                 "pass_through_2": pass_through_2,
-                "elasticity": elasticity
+                "elasticity": elasticity_d,
+                "supply_elasticity": elasticity_s,
+                "quantity_d0": quantity_d0,
+                "quantity_s0": quantity_s0
             },
             "price_changes": result.get("price_changes", {}),
-            "welfare_effects": result.get("welfare_effects", {})
+            "quantity_changes": result.get("quantity_changes", {}),
+            "welfare_effects": result.get("welfare_effects", {}),
+            "validation": result.get("validation", {})
         }
 
-    def _calculate_locally(
+    def _calculate_with_formulas(
         self,
         tariff_rate: float,
-        base_price: float,
-        pass_through_1: float,
-        pass_through_2: float,
-        elasticity: float
+        P_imp0: float,
+        P_wh0: float,
+        P_ret0: float,
+        alpha: float,
+        beta: float,
+        epsilon_d: float,
+        epsilon_s: float,
+        Q_d0: float,
+        Q_s0: float
     ) -> Dict[str, Any]:
         """
-        本地计算（当Stata不可用时）
+        使用固定公式计算关税影响
 
-        使用Python进行关税传导计算
+        基于用户提供的固定公式：
+        （一）基础模型前提
+        - 小国假设：本国为世界价格接受者，关税不改变国际进口价
+        - 单一商品局部均衡，无跨市场一般均衡反馈
+        - 线性供需曲线，使用点价格弹性计算数量变动
+
+        （二）参数合法性约束
+        0 ≤ α ≤ 1, 0 ≤ β ≤ 1
         """
-        # 如果base_price为None，使用默认值
-        if base_price is None or base_price == 0:
-            base_price = 100.0  # 默认基准价格
+        # ========== 参数校验 ==========
+        # 确保传导系数在[0,1]范围内
+        alpha = max(0.0, min(1.0, alpha))
+        beta = max(0.0, min(1.0, beta))
 
-        # 基准价格
-        wholesale_before = base_price * 1.30
-        retail_before = base_price * 1.60
+        # ========== （三）价格传导计算链 ==========
 
-        # 税后价格
-        import_after = base_price * (1 + tariff_rate)
-        wholesale_after = wholesale_before + (import_after - base_price) * pass_through_1
-        retail_after = retail_before + (wholesale_after - wholesale_before) * pass_through_2
+        # 税后进口价: P_imp1 = P_imp0 * (1 + t)
+        P_imp1 = P_imp0 * (1 + tariff_rate)
 
-        # 福利效应
-        quantity = 1000
-        tariff_increase = import_after - base_price
+        # 税后批发价: P_wh1 = P_wh0 + (P_imp1 - P_imp0) * α
+        P_wh1 = P_wh0 + (P_imp1 - P_imp0) * alpha
 
-        consumer_surplus = -tariff_increase * quantity * 0.5 * (1 + elasticity)
-        government_revenue = tariff_increase * quantity
-        producer_surplus = -tariff_increase * quantity * 0.3
-        deadweight_loss = tariff_increase * quantity * tariff_rate * 0.5
+        # 税后零售价: P_ret1 = P_ret0 + (P_wh1 - P_wh0) * β
+        P_ret1 = P_ret0 + (P_wh1 - P_wh0) * beta
+
+        # 零售价格变动幅度: ΔP_ret = P_ret1 - P_ret0
+        delta_P_ret = P_ret1 - P_ret0
+
+        # ========== （四）供需数量 & 进口量计算 ==========
+
+        # 税后需求量: Q_d1 = Q_d0 * (1 + ε_d * ΔP_ret / P_ret0)
+        if P_ret0 != 0:
+            Q_d1 = Q_d0 * (1 + epsilon_d * (delta_P_ret / P_ret0))
+        else:
+            Q_d1 = Q_d0
+
+        # 税后供给量: Q_s1 = Q_s0 * (1 + ε_s * ΔP_ret / P_ret0)
+        if P_ret0 != 0:
+            Q_s1 = Q_s0 * (1 + epsilon_s * (delta_P_ret / P_ret0))
+        else:
+            Q_s1 = Q_s0
+
+        # 进口量恒等关系: M = Q_d - Q_s
+        M0 = Q_d0 - Q_s0  # 税前进口量
+        M1 = Q_d1 - Q_s1  # 税后进口量
+
+        # ========== （五）福利效应计算 ==========
+
+        # 消费者剩余变化: ΔCS = -0.5 * ΔP_ret * (Q_d0 + Q_d1)
+        delta_CS = -0.5 * delta_P_ret * (Q_d0 + Q_d1)
+
+        # 约束检验: sign(ΔCS) = -sign(ΔP_ret)
+        if delta_P_ret != 0:
+            expected_sign_CS = -1 if delta_P_ret > 0 else 1
+            actual_sign_CS = 1 if delta_CS > 0 else -1
+            cs_sign_valid = (expected_sign_CS == actual_sign_CS)
+        else:
+            cs_sign_valid = True
+
+        # 生产者剩余变化: ΔPS = 0.5 * ΔP_ret * (Q_s0 + Q_s1)
+        delta_PS = 0.5 * delta_P_ret * (Q_s0 + Q_s1)
+
+        # 约束检验: sign(ΔPS) = sign(ΔP_ret)
+        if delta_P_ret != 0:
+            expected_sign_PS = 1 if delta_P_ret > 0 else -1
+            actual_sign_PS = 1 if delta_PS > 0 else -1
+            ps_sign_valid = (expected_sign_PS == actual_sign_PS)
+        else:
+            ps_sign_valid = True
+
+        # 政府关税收入（从价税，税基 = 税前进口价）: GR = M1 * P_imp0 * t
+        GR = M1 * P_imp0 * tariff_rate
+
+        # 约束检验: GR符号与税率t一致
+        if tariff_rate != 0:
+            expected_sign_GR = 1 if tariff_rate > 0 else -1
+            actual_sign_GR = 1 if GR > 0 else -1
+            gr_sign_valid = (expected_sign_GR == actual_sign_GR)
+        else:
+            gr_sign_valid = True
+
+        # 社会无谓损失（消费扭曲 + 生产扭曲）:
+        # DWL = 0.5 * ΔP_ret * [(Q_d0 - Q_d1) + (Q_s1 - Q_s0)]
+        DWL = 0.5 * delta_P_ret * ((Q_d0 - Q_d1) + (Q_s1 - Q_s0))
+
+        # ========== （六）全局校验规则 ==========
+
+        # 核心福利恒等式: ΔCS + ΔPS + GR + DWL = 0
+        welfare_sum = delta_CS + delta_PS + GR + DWL
+        welfare_identity_valid = abs(welfare_sum) < 1e-6
+
+        # 构建价格变化结果
+        price_changes = {
+            "import": {
+                "before": P_imp0,
+                "after": P_imp1,
+                "change": P_imp1 - P_imp0,
+                "change_rate": ((P_imp1 - P_imp0) / P_imp0 * 100) if P_imp0 != 0 else 0
+            },
+            "wholesale": {
+                "before": P_wh0,
+                "after": P_wh1,
+                "change": P_wh1 - P_wh0,
+                "change_rate": ((P_wh1 - P_wh0) / P_wh0 * 100) if P_wh0 != 0 else 0
+            },
+            "retail": {
+                "before": P_ret0,
+                "after": P_ret1,
+                "change": delta_P_ret,
+                "change_rate": ((P_ret1 - P_ret0) / P_ret0 * 100) if P_ret0 != 0 else 0
+            }
+        }
+
+        # 构建数量变化结果
+        quantity_changes = {
+            "demand": {
+                "before": Q_d0,
+                "after": Q_d1,
+                "change": Q_d1 - Q_d0,
+                "change_rate": ((Q_d1 - Q_d0) / Q_d0 * 100) if Q_d0 != 0 else 0
+            },
+            "supply": {
+                "before": Q_s0,
+                "after": Q_s1,
+                "change": Q_s1 - Q_s0,
+                "change_rate": ((Q_s1 - Q_s0) / Q_s0 * 100) if Q_s0 != 0 else 0
+            },
+            "import": {
+                "before": M0,
+                "after": M1,
+                "change": M1 - M0
+            }
+        }
+
+        # 构建福利效应结果
+        welfare_effects = {
+            "consumer_surplus_change": delta_CS,
+            "producer_surplus_change": delta_PS,
+            "government_revenue": GR,
+            "deadweight_loss": DWL,
+            "welfare_sum": welfare_sum
+        }
+
+        # 构建校验结果
+        validation = {
+            "welfare_identity": welfare_sum,
+            "welfare_identity_valid": welfare_identity_valid,
+            "cs_sign_valid": cs_sign_valid,
+            "ps_sign_valid": ps_sign_valid,
+            "gr_sign_valid": gr_sign_valid,
+            "all_valid": welfare_identity_valid and cs_sign_valid and ps_sign_valid and gr_sign_valid
+        }
 
         return {
             "success": True,
-            "price_changes": {
-                "import": {
-                    "before": base_price,
-                    "after": import_after,
-                    "change": import_after - base_price,
-                    "change_rate": tariff_rate * 100
-                },
-                "wholesale": {
-                    "before": wholesale_before,
-                    "after": wholesale_after,
-                    "change": wholesale_after - wholesale_before,
-                    "change_rate": (wholesale_after - wholesale_before) / wholesale_before * 100
-                },
-                "retail": {
-                    "before": retail_before,
-                    "after": retail_after,
-                    "change": retail_after - retail_before,
-                    "change_rate": (retail_after - retail_before) / retail_before * 100
-                }
-            },
-            "welfare_effects": {
-                "consumer_surplus_change": consumer_surplus,
-                "producer_surplus_change": producer_surplus,
-                "government_revenue": government_revenue,
-                "deadweight_loss": deadweight_loss
-            }
+            "price_changes": price_changes,
+            "quantity_changes": quantity_changes,
+            "welfare_effects": welfare_effects,
+            "validation": validation
         }
 
     def calculate_welfare(
@@ -224,7 +369,7 @@ class TariffCalculator:
         elasticity: float = 1.0
     ) -> Dict[str, Any]:
         """
-        计算福利效应
+        计算福利效应（兼容旧接口）
 
         Args:
             tariff_rate: 关税税率 (0-1)
@@ -235,39 +380,39 @@ class TariffCalculator:
         Returns:
             dict: 福利效应分析结果
         """
-        tariff_increase = base_price * tariff_rate
+        result = self._calculate_with_formulas(
+            tariff_rate=tariff_rate,
+            P_imp0=base_price,
+            P_wh0=base_price * 1.30,
+            P_ret0=base_price * 1.60,
+            alpha=0.8,
+            beta=0.7,
+            epsilon_d=-elasticity,
+            epsilon_s=2.0,
+            Q_d0=quantity,
+            Q_s0=quantity * 0.8
+        )
 
-        # 消费者剩余变化 (简化计算)
-        consumer_surplus_change = -tariff_increase * quantity * 0.5 * (1 + elasticity)
-
-        # 政府关税收入
-        government_revenue = tariff_increase * quantity
-
-        # 生产者剩余变化
-        producer_surplus_change = -tariff_increase * quantity * 0.3
-
-        # 无谓损失
-        deadweight_loss = tariff_increase * quantity * tariff_rate * 0.5
-
-        # 总福利
-        total_welfare_change = consumer_surplus_change + producer_surplus_change + government_revenue
-
-        return {
-            "tariff_rate": tariff_rate,
-            "base_price": base_price,
-            "quantity": quantity,
-            "elasticity": elasticity,
-            "consumer_surplus_change": consumer_surplus_change,
-            "producer_surplus_change": producer_surplus_change,
-            "government_revenue": government_revenue,
-            "deadweight_loss": deadweight_loss,
-            "total_welfare_change": total_welfare_change,
-            "summary": {
-                "消费者负担": -consumer_surplus_change,
-                "政府收入": government_revenue,
-                "社会净损失": deadweight_loss
+        if result.get("success"):
+            welfare = result["welfare_effects"]
+            return {
+                "tariff_rate": tariff_rate,
+                "base_price": base_price,
+                "quantity": quantity,
+                "elasticity": elasticity,
+                "consumer_surplus_change": welfare["consumer_surplus_change"],
+                "producer_surplus_change": welfare["producer_surplus_change"],
+                "government_revenue": welfare["government_revenue"],
+                "deadweight_loss": welfare["deadweight_loss"],
+                "total_welfare_change": welfare["consumer_surplus_change"] + welfare["producer_surplus_change"] + welfare["government_revenue"] + welfare["deadweight_loss"],
+                "validation": result["validation"],
+                "summary": {
+                    "消费者负担": -welfare["consumer_surplus_change"],
+                    "政府收入": welfare["government_revenue"],
+                    "社会净损失": welfare["deadweight_loss"]
+                }
             }
-        }
+        return {"success": False, "error": "计算失败"}
 
     def sensitivity_analysis(
         self,
@@ -309,6 +454,8 @@ class TariffCalculator:
 
         # 对每个税率进行计算
         results = []
+        validation_results = []
+
         for rate in tariff_rates:
             result = self.calculate(
                 hs_code=hs_code,
@@ -318,32 +465,62 @@ class TariffCalculator:
             )
 
             if result.get("success"):
+                pc = result["price_changes"]
+                we = result["welfare_effects"]
+                val = result["validation"]
+
                 results.append({
                     "tariff_rate": rate,
                     "tariff_rate_percent": rate * 100,
-                    "import_price": result["price_changes"]["import"]["after"],
-                    "wholesale_price": result["price_changes"]["wholesale"]["after"],
-                    "retail_price": result["price_changes"]["retail"]["after"],
-                    "retail_price_change_rate": result["price_changes"]["retail"]["change_rate"],
-                    "consumer_burden": -result["welfare_effects"].get("consumer_surplus_change", 0),
-                    "government_revenue": result["welfare_effects"].get("government_revenue", 0),
-                    "deadweight_loss": result["welfare_effects"].get("deadweight_loss", 0)
+                    "import_price": pc["import"]["after"],
+                    "wholesale_price": pc["wholesale"]["after"],
+                    "retail_price": pc["retail"]["after"],
+                    "retail_price_change": pc["retail"]["change"],
+                    "retail_price_change_rate": pc["retail"]["change_rate"],
+                    "demand_quantity": result["quantity_changes"]["demand"]["after"],
+                    "supply_quantity": result["quantity_changes"]["supply"]["after"],
+                    "import_quantity": result["quantity_changes"]["import"]["after"],
+                    "consumer_surplus_change": we["consumer_surplus_change"],
+                    "producer_surplus_change": we["producer_surplus_change"],
+                    "government_revenue": we["government_revenue"],
+                    "deadweight_loss": we["deadweight_loss"],
+                    "welfare_sum": we["welfare_sum"]
                 })
 
-        return {
-            "success": True,
-            "industry": {
-                "hs_code": industry["hs_code"],
-                "name": industry["name"],
-                "base_price": base_price
-            },
-            "analysis": results,
-            "summary": {
-                "max_retail_price": max(r["retail_price"] for r in results),
-                "max_deadweight_loss": max(r["deadweight_loss"] for r in results),
-                "optimal_rate": results[results.index(max(results, key=lambda x: x["government_revenue"]))]["tariff_rate"] if results else 0
+                # 记录校验结果
+                validation_results.append({
+                    "tariff_rate": rate,
+                    "welfare_identity_valid": val["welfare_identity_valid"],
+                    "all_valid": val["all_valid"]
+                })
+
+        # 汇总分析
+        if results:
+            max_retail_idx = max(range(len(results)), key=lambda i: results[i]["retail_price"])
+            max_dwl_idx = max(range(len(results)), key=lambda i: results[i]["deadweight_loss"])
+            max_gr_idx = max(range(len(results)), key=lambda i: results[i]["government_revenue"])
+
+            return {
+                "success": True,
+                "industry": {
+                    "hs_code": industry["hs_code"],
+                    "name": industry["name"],
+                    "base_price": base_price
+                },
+                "analysis": results,
+                "validation_summary": validation_results,
+                "summary": {
+                    "max_retail_price": results[max_retail_idx]["retail_price"],
+                    "max_retail_price_rate": results[max_retail_idx]["tariff_rate_percent"],
+                    "max_deadweight_loss": results[max_dwl_idx]["deadweight_loss"],
+                    "max_deadweight_loss_rate": results[max_dwl_idx]["tariff_rate_percent"],
+                    "optimal_rate_for_revenue": results[max_gr_idx]["tariff_rate_percent"],
+                    "max_government_revenue": results[max_gr_idx]["government_revenue"],
+                    "all_validations_passed": all(v["all_valid"] for v in validation_results)
+                }
             }
-        }
+
+        return {"success": False, "error": "计算失败"}
 
     def industry_comparison(
         self,
@@ -374,16 +551,21 @@ class TariffCalculator:
             )
 
             if result.get("success"):
+                pc = result["price_changes"]
+                we = result["welfare_effects"]
+
                 results.append({
                     "hs_code": result["industry"]["hs_code"],
                     "name": result["industry"]["name"],
                     "category": result["industry"]["category"],
                     "base_price": result["params"]["base_price"],
-                    "retail_price_after": result["price_changes"]["retail"]["after"],
-                    "retail_price_change_rate": result["price_changes"]["retail"]["change_rate"],
-                    "consumer_burden": -result["welfare_effects"].get("consumer_surplus_change", 0),
-                    "government_revenue": result["welfare_effects"].get("government_revenue", 0),
-                    "deadweight_loss": result["welfare_effects"].get("deadweight_loss", 0)
+                    "retail_price_before": pc["retail"]["before"],
+                    "retail_price_after": pc["retail"]["after"],
+                    "retail_price_change_rate": pc["retail"]["change_rate"],
+                    "consumer_surplus_change": we["consumer_surplus_change"],
+                    "producer_surplus_change": we["producer_surplus_change"],
+                    "government_revenue": we["government_revenue"],
+                    "deadweight_loss": we["deadweight_loss"]
                 })
 
         # 按零售价变化率排序
@@ -394,8 +576,8 @@ class TariffCalculator:
             "tariff_rate": tariff_rate,
             "comparison": results,
             "summary": {
-                "most_affected": results[0] if results else None,  # 影响最大
-                "least_affected": results[-1] if results else None,  # 影响最小
+                "most_affected": results[0] if results else None,
+                "least_affected": results[-1] if results else None,
                 "total_government_revenue": sum(r["government_revenue"] for r in results),
                 "total_deadweight_loss": sum(r["deadweight_loss"] for r in results)
             }
@@ -423,8 +605,18 @@ if __name__ == "__main__":
     result = calc.calculate(hs_code="0101.10", tariff_rate=0.10)
     print(f"Success: {result.get('success')}")
     if result.get("success"):
-        print(f"Retail Price: {result['price_changes']['retail']['after']}")
-        print(f"Retail Change Rate: {result['price_changes']['retail']['change_rate']:.2f}%")
+        pc = result['price_changes']
+        we = result['welfare_effects']
+        val = result['validation']
+        print(f"Retail Price: {pc['retail']['before']} -> {pc['retail']['after']}")
+        print(f"Retail Change Rate: {pc['retail']['change_rate']:.2f}%")
+        print(f"Consumer Surplus Change: {we['consumer_surplus_change']:,.2f}")
+        print(f"Producer Surplus Change: {we['producer_surplus_change']:,.2f}")
+        print(f"Government Revenue: {we['government_revenue']:,.2f}")
+        print(f"Deadweight Loss: {we['deadweight_loss']:,.2f}")
+        print(f"Welfare Sum (should be ~0): {we['welfare_sum']:.10f}")
+        print(f"Welfare Identity Valid: {val['welfare_identity_valid']}")
+        print(f"All Validations Passed: {val['all_valid']}")
 
     # 测试2: 敏感性分析
     print("\n=== 测试2: 敏感性分析 ===")
@@ -432,7 +624,10 @@ if __name__ == "__main__":
     print(f"Success: {sa_result.get('success')}")
     if sa_result.get("success"):
         for item in sa_result["analysis"]:
-            print(f"税率 {item['tariff_rate_percent']:.0f}% -> 零售价: {item['retail_price']:.2f}, 变化: {item['retail_price_change_rate']:.2f}%")
+            print(f"税率 {item['tariff_rate_percent']:.0f}% -> 零售价: {item['retail_price']:.2f}, "
+                  f"变化: {item['retail_price_change_rate']:.2f}%, "
+                  f"DWL: {item['deadweight_loss']:.2f}")
+        print(f"All Validations Passed: {sa_result['summary']['all_validations_passed']}")
 
     # 测试3: 行业对比
     print("\n=== 测试3: 行业对比 ===")

@@ -228,10 +228,10 @@ init_session_state()
 
 # 清理缓存逻辑 - 确保每次计算都是最新结果
 # 通过在session_state中记录参数哈希来检测参数变化
-def get_params_hash(preset, hs_code, tariff_rate, pt1, pt2, elasticity):
+def get_params_hash(preset, hs_code, tariff_rate, pt1, pt2, elasticity, supply_elasticity=2.0):
     """生成参数哈希，用于检测参数变化"""
     import hashlib
-    params_str = f"{preset}|{hs_code}|{tariff_rate}|{pt1}|{pt2}|{elasticity}"
+    params_str = f"{preset}|{hs_code}|{tariff_rate}|{pt1}|{pt2}|{elasticity}|{supply_elasticity}"
     return hashlib.md5(params_str.encode()).hexdigest()
 
 # 检测参数变化，清除缓存
@@ -241,7 +241,8 @@ current_params_hash = get_params_hash(
     st.session_state.get('tariff_rate', 0),
     st.session_state.get('pt1', 0.8),
     st.session_state.get('pt2', 0.7),
-    st.session_state.get('elasticity', 1.0)
+    st.session_state.get('elasticity', 1.0),
+    st.session_state.get('supply_elasticity', 2.0)
 )
 
 if 'last_params_hash' not in st.session_state:
@@ -531,6 +532,7 @@ def render_sensitivity_page(calculator):
         pt2 = st.slider("Wholesale->Retail Pass-Through", 0.0, 1.0, 0.7, 0.05)
     with col3:
         elasticity = st.number_input("Demand Elasticity", 0.1, 5.0, 1.0, 0.1, key="sensitivity_elasticity")
+    supply_elasticity_sens = st.number_input("Supply Elasticity", 0.1, 10.0, 2.0, 0.1, key="sensitivity_supply_elasticity")
 
     if st.button("Run Sensitivity Analysis", type="primary"):
         with st.spinner("Calculating..."):
@@ -550,7 +552,8 @@ def render_sensitivity_page(calculator):
                         "base_price": base_price,
                         "pass_through_1": pt1,
                         "pass_through_2": pt2,
-                        "elasticity": elasticity
+                        "elasticity": elasticity,
+                        "supply_elasticity": supply_elasticity_sens
                     }
                 )
                 if result.get("success"):
@@ -762,6 +765,8 @@ with st.sidebar:
         help="Tariff cost transfer ratio from wholesale to retail")
     elasticity = st.number_input("Demand Elasticity (Ed)", 0.1, 5.0, db_elasticity, 0.1, key="main_elasticity",
         help="Price elasticity of demand (absolute value): 0<Ed<1 = inelastic, Ed=1 = unit elastic, Ed>1 = elastic")
+    supply_elasticity = st.number_input("Supply Elasticity (Es)", 0.1, 10.0, 2.0, 0.1, key="main_supply_elasticity",
+        help="Price elasticity of supply (positive value): 0<Es<1 = inelastic, Es=1 = unit elastic, Es>1 = elastic")
 
     st.markdown("---")
 
@@ -935,6 +940,7 @@ if calculate_clicked:
                 "pass_through_1": pass_through_1,
                 "pass_through_2": pass_through_2,
                 "elasticity": elasticity,
+                "supply_elasticity": supply_elasticity,
                 "price_factor": current_price_factor
             }
         )
@@ -947,7 +953,8 @@ if calculate_clicked:
             tariff_rate,
             pass_through_1,
             pass_through_2,
-            elasticity
+            elasticity,
+            supply_elasticity
         )
 
         if result.get("success"):
