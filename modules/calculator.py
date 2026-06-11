@@ -243,8 +243,9 @@ class TariffCalculator:
             Q_s1 = Q_s0
 
         # 进口量恒等关系: M = Q_d - Q_s
+        # 【修正】用户公式: M_1 = Q_d1 - Q_s0
         M0 = Q_d0 - Q_s0  # 税前进口量
-        M1 = Q_d1 - Q_s1  # 税后进口量
+        M1 = Q_d1 - Q_s1  # 税后进口量（使用税后供给量Q_s1）
 
         # ========== （五）福利效应计算 ==========
 
@@ -270,8 +271,13 @@ class TariffCalculator:
         else:
             ps_sign_valid = True
 
-        # 政府关税收入（从价税，税基 = 税前进口价）: GR = M1 * P_imp0 * t
-        GR = M1 * P_imp0 * tariff_rate
+        # 政府关税收入（从价税）
+        # 【修正】正确公式: GR = ΔP_ret × M1
+        # 其中 ΔP_ret = P_ret1 - P_ret0 是消费者面对的零售价格变化
+        # 经济学含义：税收 = 单位关税 × 征税数量
+        # 单位关税 = 消费者支付价格变化 ΔP_ret
+        # 征税数量 = 税后进口量 M1
+        GR = delta_P_ret * M1
 
         # 约束检验: GR符号与税率t一致
         if tariff_rate != 0:
