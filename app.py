@@ -1382,41 +1382,15 @@ if calculate_clicked:
 
             # 设置图表布局 - 可折叠图例
             fig_eq.update_layout(
-                title=dict(
-                    text='Partial Equilibrium: Tariff Impact on Welfare',
-                    font=dict(size=16, color='#2c3e50')
-                ),
-                xaxis=dict(
-                    title='Quantity',
-                    titlefont=dict(size=14, color='#2c3e50'),
-                    tickfont=dict(size=12),
-                    range=[0, 1500],
-                    showgrid=True,
-                    gridcolor='rgba(0,0,0,0.1)',
-                    gridwidth=1
-                ),
-                yaxis=dict(
-                    title='Price (CNY)',
-                    titlefont=dict(size=14, color='#2c3e50'),
-                    tickfont=dict(size=12),
-                    range=[0, max(Pt * 1.3, P0 * 1.3)],
-                    showgrid=True,
-                    gridcolor='rgba(0,0,0,0.1)',
-                    gridwidth=1
-                ),
-                legend=dict(
-                    x=1.02,
-                    y=1,
-                    bgcolor='rgba(255,255,255,0.8)',
-                    bordercolor='rgba(0,0,0,0.2)',
-                    borderwidth=1,
-                    font=dict(size=10)
-                ),
+                title='Partial Equilibrium: Tariff Impact on Welfare',
+                xaxis_title='Quantity',
+                yaxis_title='Price (CNY)',
+                xaxis=dict(range=[0, 1500], showgrid=True),
+                yaxis=dict(range=[0, max(Pt * 1.3, P0 * 1.3)], showgrid=True),
+                legend=dict(x=1.02, y=1),
                 hovermode='closest',
                 plot_bgcolor='white',
-                width=None,
-                height=450,
-                margin=dict(l=60, r=150, t=60, b=60)
+                height=450
             )
 
             st.plotly_chart(fig_eq, use_container_width=True)
