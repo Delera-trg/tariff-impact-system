@@ -848,111 +848,278 @@ def render_sensitivity_page(calculator):
                     if cost_absorption_pct <= 30:
                         cost_pressure_level = "Low"
                         cost_pressure_desc = "Most costs are successfully passed to downstream. Profit margins remain largely unaffected."
+                        cost_pressure_color = "#C6F6D5"
+                        cost_pressure_border = "#38A169"
                     elif cost_absorption_pct <= 60:
                         cost_pressure_level = "Medium"
                         cost_pressure_desc = "Approximately half of the costs are borne by the company. Profit margins are under some pressure."
+                        cost_pressure_color = "#FEFCBF"
+                        cost_pressure_border = "#D69E2E"
                     else:
                         cost_pressure_level = "High"
                         cost_pressure_desc = "Most costs cannot be passed on. Profit margins are significantly eroded."
+                        cost_pressure_color = "#FED7D7"
+                        cost_pressure_border = "#E53E3E"
 
                     # 2. Market Risk Level
                     if import_decline_pct <= 15:
                         market_risk_level = "Low"
                         market_risk_desc = "Import volume fluctuates slightly. Market demand remains relatively stable."
+                        market_risk_color = "#C6F6D5"
+                        market_risk_border = "#38A169"
                     elif import_decline_pct <= 40:
                         market_risk_level = "Medium"
                         market_risk_desc = "Import volume declines noticeably. Market demand is under pressure."
+                        market_risk_color = "#FEFCBF"
+                        market_risk_border = "#D69E2E"
                     else:
                         market_risk_level = "High"
                         market_risk_desc = "Import volume shrinks significantly. Market demand is severely insufficient."
+                        market_risk_color = "#FED7D7"
+                        market_risk_border = "#E53E3E"
 
                     # 3. Supply Chain Bargaining Power Assessment
                     if overall_pass_through >= 70:
                         bargaining_power = "Strong"
                         bargaining_desc = "The company has strong bargaining power and can pass on most tariff costs."
+                        bargaining_color = "#C6F6D5"
+                        bargaining_border = "#38A169"
                     elif overall_pass_through >= 40:
                         bargaining_power = "Medium"
                         bargaining_desc = "The company has moderate bargaining power; some costs must be absorbed internally."
+                        bargaining_color = "#FEFCBF"
+                        bargaining_border = "#D69E2E"
                     else:
                         bargaining_power = "Weak"
                         bargaining_desc = "The company has weak bargaining power and struggles to pass cost pressures downstream."
+                        bargaining_color = "#FED7D7"
+                        bargaining_border = "#E53E3E"
 
                     # 4. Comprehensive Response Strategy
                     if cost_pressure_level == "Low" and market_risk_level == "Low":
                         strategy = "Maintain current pricing strategy. Consider expanding import volume to capture market share."
+                        strategy_color = "#C6F6D5"
+                        strategy_icon = "✅"
                     elif cost_pressure_level == "High" and market_risk_level == "High":
                         strategy = "Recommend pausing imports temporarily. Seek alternative suppliers or adjust product mix."
+                        strategy_color = "#FED7D7"
+                        strategy_icon = "⚠️"
                     elif cost_pressure_level == "High":
                         strategy = "Focus on optimizing procurement channels while moderately raising prices to alleviate cost pressure."
+                        strategy_color = "#FEFCBF"
+                        strategy_icon = "📊"
                     elif market_risk_level == "High":
                         strategy = "Carefully control inventory. Avoid overstocking that leads to capital occupation."
+                        strategy_color = "#FEFCBF"
+                        strategy_icon = "📦"
                     else:
                         strategy = "Slight price increase + optimized procurement mix. Balance profit and market share."
+                        strategy_color = "#E9D8FD"
+                        strategy_icon = "⚖️"
 
                     # ========== Report Rendering ==========
                     st.markdown("---")
 
-                    # Section 1: Cost Impact Analysis
-                    st.markdown("### 1. Cost Impact & Company Absorption Capacity")
-                    st.metric(
-                        label="Cost Absorption Rate",
-                        value=f"{cost_absorption_pct:.1f}%",
-                        delta=f"Pressure Level: {cost_pressure_level}",
-                        delta_color="inverse"
-                    )
-                    st.caption(cost_pressure_desc)
+                    # 报告标题区域
+                    st.markdown("""
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                border-radius: 12px; padding: 20px; margin: 15px 0; color: white;">
+                        <h4 style="margin-bottom: 10px; color: white; font-size: 1.3rem;">📋企业经营动态分析报告</h4>
+                        <p style="font-size: 14px; color: rgba(255,255,255,0.95);">基于关税传导模型的实时企业经营影响分析报告</p>
+                        <p style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 8px;">分析区间: {min_tariff}% - {max_tariff}% 关税税率</p>
+                    </div>
+                    """.format(min_tariff=min_tariff, max_tariff=max_tariff), unsafe_allow_html=True)
 
-                    # Section 2: Market Risk
-                    st.markdown("### 2. Market Demand & Sales Risk")
-                    col1, col2 = st.columns(2)
+                    # Section 1: Cost Impact Analysis - 包装在卡片中
+                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                    st.markdown("### 1. 成本影响与企业吸收能力分析")
+                    st.markdown("*Cost Impact & Company Absorption Capacity*")
+
+                    col1, col2 = st.columns([1, 2])
                     with col1:
-                        st.metric("Import Volume Decline", f"{import_decline_pct:.1f}%", delta_color="inverse")
+                        st.metric(
+                            label="成本吸收率",
+                            value=f"{cost_absorption_pct:.1f}%",
+                            delta=f"压力等级: {cost_pressure_level}",
+                            delta_color="inverse"
+                        )
                     with col2:
-                        st.metric("Retail Price Increase", f"{retail_price_increase_pct:.1f}%")
-                    st.caption(f"Market Risk Level: **{market_risk_level}** — {market_risk_desc}")
+                        st.markdown(f"""
+                        <div style="background-color: {cost_pressure_color};
+                                    border-left: 4px solid {cost_pressure_border};
+                                    padding: 12px 16px; border-radius: 0 8px 8px 0;
+                                    margin-top: 10px;">
+                            <p style="margin: 0; color: #2D3748; font-size: 0.95rem;">{cost_pressure_desc}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-                    # Section 3: Supply Chain Transmission Efficiency
-                    st.markdown("### 3. Supply Chain Transmission Efficiency Assessment")
+                    # Section 2: Market Risk - 包装在卡片中
+                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                    st.markdown("### 2. 市场需求与销售风险分析")
+                    st.markdown("*Market Demand & Sales Risk*")
+
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Import->Retail Pass-Through", f"{overall_pass_through:.1f}%")
+                        st.metric("进口量下降", f"{import_decline_pct:.1f}%", delta_color="inverse")
                     with col2:
-                        st.metric("Wholesale Level Increase", f"{wholesale_price_increase_pct:.1f}%")
+                        st.metric("零售价上涨", f"{retail_price_increase_pct:.1f}%")
                     with col3:
-                        st.metric("Retail Level Increase", f"{retail_price_increase_pct:.1f}%")
-                    st.caption(f"Bargaining Power: **{bargaining_power}** — {bargaining_desc}")
+                        st.metric("批发价上涨", f"{wholesale_price_increase_pct:.1f}%")
 
-                    # Section 4: Response Strategy
-                    st.markdown("### 4. Business Response Strategy Recommendations")
-                    st.info(f"**💡 {strategy}**")
+                    st.markdown(f"""
+                    <div style="background-color: {market_risk_color};
+                                border-left: 4px solid {market_risk_border};
+                                padding: 12px 16px; border-radius: 0 8px 8px 0;
+                                margin-top: 15px;">
+                        <p style="margin: 0; color: #2D3748; font-size: 0.95rem;"><strong>市场风险等级: {market_risk_level}</strong> — {market_risk_desc}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-                    # Section 5: Key Data Snapshot
-                    with st.expander("📋 Key Data Snapshot (Click to Expand)", expanded=False):
+                    # Section 3: Supply Chain Transmission Efficiency - 包装在卡片中
+                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                    st.markdown("### 3. 供应链传导效率评估")
+                    st.markdown("*Supply Chain Transmission Efficiency Assessment*")
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("进口→零售传导率", f"{overall_pass_through:.1f}%")
+                    with col2:
+                        st.metric("批发层涨幅", f"+{wholesale_price_increase_pct:.1f}%")
+                    with col3:
+                        st.metric("零售层涨幅", f"+{retail_price_increase_pct:.1f}%")
+
+                    st.markdown(f"""
+                    <div style="background-color: {bargaining_color};
+                                border-left: 4px solid {bargaining_border};
+                                padding: 12px 16px; border-radius: 0 8px 8px 0;
+                                margin-top: 15px;">
+                        <p style="margin: 0; color: #2D3748; font-size: 0.95rem;"><strong>议价能力: {bargaining_power}</strong> — {bargaining_desc}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                    # Section 4: Response Strategy - 包装在卡片中
+                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                    st.markdown("### 4. 企业经营策略建议")
+                    st.markdown("*Business Response Strategy Recommendations*")
+
+                    st.markdown(f"""
+                    <div style="background-color: {strategy_color};
+                                border-left: 4px solid {bargaining_border};
+                                padding: 16px 20px; border-radius: 0 10px 10px 0;
+                                margin-top: 10px;">
+                        <p style="margin: 0; font-size: 1rem; color: #2D3748;"><strong>{strategy_icon} {strategy}</strong></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                    # Section 5: Key Data Snapshot - 优化样式
+                    with st.expander("📋 关键数据快照 (点击展开)", expanded=False):
+                        st.markdown("""
+                        <style>
+                            .data-table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin: 10px 0;
+                                font-size: 0.9rem;
+                            }
+                            .data-table th {
+                                background-color: #4A5568;
+                                color: white;
+                                padding: 12px;
+                                text-align: left;
+                                font-weight: 600;
+                            }
+                            .data-table td {
+                                padding: 10px 12px;
+                                border-bottom: 1px solid #E2E8F0;
+                                color: #2D3748;
+                            }
+                            .data-table tr:nth-child(even) {
+                                background-color: #F7FAFC;
+                            }
+                            .data-table tr:hover {
+                                background-color: #EDF2F7;
+                            }
+                            .metric-value {
+                                font-weight: 600;
+                                color: #2B6CB0;
+                            }
+                        </style>
+                        """, unsafe_allow_html=True)
+
                         st.markdown(f"""
-                        | Metric | Value | Description |
-                        |--------|-------|-------------|
-                        | Unit Tariff Cost | ¥{unit_tariff_cost:,.2f} | Additional cost per unit of imported goods |
-                        | Est. Tariff Expenditure | ¥{tariff_expenditure:,.0f} | Total tariff amount company needs to pay |
-                        | Government Revenue | ¥{tariff_revenue:,.0f} | Government revenue from this tariff |
-                        | Pass-Through Efficiency | {overall_pass_through:.1f}% | Proportion of tariff cost passed to retail |
-                        | Demand Elasticity | {elasticity} | Larger values = more price-sensitive demand |
-                        """)
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>指标</th>
+                                    <th>数值</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>单位关税成本</td>
+                                    <td class="metric-value">¥{unit_tariff_cost:,.2f}</td>
+                                    <td>每单位进口商品的额外关税成本</td>
+                                </tr>
+                                <tr>
+                                    <td>预估关税支出</td>
+                                    <td class="metric-value">¥{tariff_expenditure:,.0f}</td>
+                                    <td>企业需缴纳的关税总额（基于基准量）</td>
+                                </tr>
+                                <tr>
+                                    <td>政府关税收入</td>
+                                    <td class="metric-value">¥{tariff_revenue:,.0f}</td>
+                                    <td>政府从该关税中获得的收入</td>
+                                </tr>
+                                <tr>
+                                    <td>传导效率</td>
+                                    <td class="metric-value">{overall_pass_through:.1f}%</td>
+                                    <td>关税成本转嫁给零售端的比例</td>
+                                </tr>
+                                <tr>
+                                    <td>需求弹性</td>
+                                    <td class="metric-value">{elasticity}</td>
+                                    <td>需求对价格变化的敏感程度</td>
+                                </tr>
+                                <tr>
+                                    <td>进口价格涨幅</td>
+                                    <td class="metric-value">+{import_price_increase_pct:.1f}%</td>
+                                    <td>含税进口价格相对涨幅</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        """, unsafe_allow_html=True)
 
-                    st.caption("Note: This report is generated in real-time based on current parameters. Data updates automatically with parameter adjustments.")
+                    st.markdown("""
+                    <p style="font-size: 0.85rem; color: #718096; font-style: italic; margin-top: 15px;">
+                        💡 提示：本报告基于当前参数实时生成。数据会随参数调整自动更新。
+                    </p>
+                    """, unsafe_allow_html=True)
 
                     # Export button for Business
-                    st.markdown("### Export Business Results")
+                    st.markdown("---")
+                    st.markdown("### 📥 导出分析报告")
+
+                    # 美化导出区域
+                    st.markdown('<div class="result-card" style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);">', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([3, 1])
                     with col1:
+                        st.markdown("**导出企业经营动态分析报告**")
                         file_name_biz = f"Sensitivity_Analysis_Business_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                     with col2:
                         st.download_button(
-                            label="📥 Export to Excel",
+                            label="📥 导出Excel",
                             data=exporter.export_to_excel({"sensitivity_analysis": df.to_dict()}, file_name=file_name_biz),
                             file_name=f"{file_name_biz}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             key="sensitivity_business_export"
                         )
+                    st.markdown('</div>', unsafe_allow_html=True)
 
             else:
                 st.error("Calculation failed. Please check parameter settings.")
