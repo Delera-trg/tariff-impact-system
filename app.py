@@ -1194,50 +1194,6 @@ with tab1:
     is_business_view = (display_view == "Business View")
     st.markdown("---")
 
-    # Calculate Button - inside tab1 only
-    if st.button("Calculate", type="primary"):
-        calculate_clicked = True
-    else:
-        calculate_clicked = False
-
-    if calculate_clicked:
-        with st.spinner("Calculating..."):
-            # 获取当前价格调整系数
-            current_price_factor = st.session_state.get('price_factor', 1.0)
-
-            result = calculator.calculate(
-                hs_code=hs_code,
-                tariff_rate=tariff_rate,
-                custom_params={
-                    "pass_through_1": pass_through_1,
-                    "pass_through_2": pass_through_2,
-                    "elasticity": elasticity,
-                    "supply_elasticity": supply_elasticity,
-                    "price_factor": current_price_factor
-                }
-            )
-            # 保存计算结果到session_state，并记录当前参数哈希
-            st.session_state.calculation_result = result
-            st.session_state.show_export = False
-            st.session_state.last_params_hash = get_params_hash(
-                st.session_state.get('tariff_mode', 'Quick Presets'),
-                hs_code,
-                tariff_rate,
-                pass_through_1,
-                pass_through_2,
-                elasticity,
-                supply_elasticity
-            )
-
-            if result.get("success"):
-                # 保存历史记录
-                session_id = st.session_state.get("session_id", "default")
-                calculator.db.save_calculation_history(result, session_id=session_id)
-
-                # ========== Results Section with Cards ==========
-                st.markdown("## Calculation Results")
-                # ... (rest of calculation results)
-
 with tab2:
     # History页面 - 保持当前页面状态，不清除内容
     handle_page_change(PAGE_HISTORY)
