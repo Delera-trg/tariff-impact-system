@@ -1116,3 +1116,75 @@ if calculate_clicked:
             plt.close(fig_eq)
             st.markdown('</div>', unsafe_allow_html=True)
 
+    # ========== Core Calculation Formulas Section ==========
+    with st.expander("Click to View Core Calculation Formulas (English)", expanded=False):
+        st.markdown("## Core Calculation Formulas")
+
+        # Section 1: Price Transmission Formulas
+        st.markdown("### 1. Price Transmission Formulas")
+        st.markdown(r"""
+        The price transmission chain calculates how tariff changes affect prices across the supply chain:
+
+        **Import Price (After Tariff):**
+        $$P_{imp1} = P_{imp0} \times (1 + t)$$
+
+        **Wholesale Price:**
+        $$P_{wh1} = P_{wh0} + (P_{imp1} - P_{imp0}) \times \alpha$$
+
+        **Retail Price:**
+        $$P_{ret1} = P_{ret0} + (P_{wh1} - P_{wh0}) \times \beta$$
+
+        **Retail Price Change:**
+        $$\Delta P_{ret} = P_{ret1} - P_{ret0}$$
+
+        Where:
+        - $P_{imp0}$: Pre-tariff import price (world price)
+        - $P_{wh0}$: Pre-tariff wholesale price
+        - $P_{ret0}$: Pre-tariff retail price
+        - $t$: Tariff rate
+        - $\alpha$: Import-to-Wholesale pass-through coefficient ($0 \leq \alpha \leq 1$)
+        - $\beta$: Wholesale-to-Retail pass-through coefficient ($0 \leq \beta \leq 1$)
+        """)
+
+        # Section 2: Welfare Effect Formulas
+        st.markdown("### 2. Welfare Effect Formulas")
+        st.markdown(r"""
+        The welfare effects measure the economic impact of tariffs on different market participants:
+
+        **Quantity Changes:**
+        $$Q_{d1} = Q_{d0} \times (1 + \varepsilon_d \times \frac{\Delta P_{ret}}{P_{ret0}})$$
+        $$Q_{s1} = Q_{s0} \times (1 + \varepsilon_s \times \frac{\Delta P_{ret}}{P_{ret0}})$$
+        $$M_1 = Q_{d1} - Q_{s1}$$
+
+        Where:
+        - $Q_{d0}$: Pre-tariff quantity demanded
+        - $Q_{s0}$: Pre-tariff domestic supply
+        - $\varepsilon_d$: Demand elasticity (must be negative)
+        - $\varepsilon_s$: Supply elasticity (must be positive)
+        - $M_1$: Post-tariff import volume
+
+        **Consumer Surplus Change:**
+        $$\Delta CS = -\frac{1}{2} \times \Delta P_{ret} \times (Q_{d0} + Q_{d1})$$
+
+        **Producer Surplus Change:**
+        $$\Delta PS = \frac{1}{2} \times \Delta P_{ret} \times (Q_{s0} + Q_{s1})$$
+
+        **Government Revenue (Corrected Formula):**
+        $$GR = \Delta P_{ret} \times M_1$$
+
+        **Deadweight Loss:**
+        $$DWL = \frac{1}{2} \times \Delta P_{ret} \times [(Q_{d0} - Q_{d1}) + (Q_{s1} - Q_{s0})]$$
+
+        **Welfare Identity (Validation):**
+        $$\Delta CS + \Delta PS + GR + DWL = 0$$
+
+        Where:
+        - $\Delta CS$: Change in consumer surplus (negative when prices rise)
+        - $\Delta PS$: Change in producer surplus (positive when prices rise)
+        - $GR$: Government tariff revenue
+        - $DWL$: Deadweight loss (always non-negative)
+        """)
+
+        # Note about formula correction
+        st.caption("Note: The government revenue formula has been corrected to GR = ΔP_retail × M1 to ensure the welfare identity holds. This reflects the actual price burden on consumers rather than using the pre-tariff import price as the tax base.")
+
