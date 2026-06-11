@@ -1194,6 +1194,400 @@ with tab1:
     is_business_view = (display_view == "Business View")
     st.markdown("---")
 
+    # ========== Calculate Button (inside tab1) ==========
+    if st.button("Calculate", type="primary"):
+        calculate_clicked = True
+    else:
+        calculate_clicked = False
+
+    if calculate_clicked:
+        with st.spinner("Calculating..."):
+            # 获取当前价格调整系数
+            current_price_factor = st.session_state.get('price_factor', 1.0)
+
+            result = calculator.calculate(
+                hs_code=hs_code,
+                tariff_rate=tariff_rate,
+                custom_params={
+                    "pass_through_1": pass_through_1,
+                    "pass_through_2": pass_through_2,
+                    "elasticity": elasticity,
+                    "supply_elasticity": supply_elasticity,
+                    "price_factor": current_price_factor
+                }
+            )
+            # 保存计算结果到session_state，并记录当前参数哈希
+            st.session_state.calculation_result = result
+            st.session_state.show_export = False
+            st.session_state.last_params_hash = get_params_hash(
+                st.session_state.get('tariff_mode', 'Quick Presets'),
+                hs_code,
+                tariff_rate,
+                pass_through_1,
+                pass_through_2,
+                elasticity,
+                supply_elasticity
+            )
+
+            if result.get("success"):
+                # 保存历史记录
+                session_id = st.session_state.get("session_id", "default")
+                calculator.db.save_calculation_history(result, session_id=session_id)
+
+                # ========== Results Section with Cards ==========
+                st.markdown("## Calculation Results")
+
+                # Card 1: Price Changes Table
+                st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                st.markdown("### Price Changes Across Supply Chain")
+                st.markdown("*Impact of tariff on import, wholesale, and retail prices*")
+
+                price = result["price_changes"]
+                welfare = result["welfare_effects"]
+                industry = result["industry"]
+                params = result["params"]
+
+                # 结果表格 - 英文标注
+                df = pd.DataFrame({
+                    "Stage": ["Import", "Wholesale", "Retail"],
+                    "Before Tax": [price["import"]["before"], price["wholesale"]["before"], price["retail"]["before"]],
+                    "After Tax": [price["import"]["after"], price["wholesale"]["after"], price["retail"]["after"]],
+                    "Change": [price["import"]["change"], price["wholesale"]["change"], price["retail"]["change"]],
+                    "Change Rate": [f"{price['import']['change_rate']:.2f}%", f"{price['wholesale']['change_rate']:.2f}%", f"{price['retail']['change_rate']:.2f}%"]
+                })
+                st.dataframe(df.style.format({"Before Tax": "¥{:.2f}", "After Tax": "¥{:.2f}", "Change": "¥{:.2f}"}), use_container_width=True, hide_index=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                st.markdown("")
+
+                # Card 2: Welfare Effects (Academic View Only)
+                if not is_business_view:
+                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                    st.markdown("### Welfare Effects Analysis")
+                    st.markdown("*Economic impact on consumers, producers, and government*")
+
+                    # 福利效应 - 英文标注
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1: st.metric("Consumer Surplus Change", format_currency(welfare.get("consumer_surplus_change", 0)), delta_color="inverse")
+                    with col2: st.metric("Producer Surplus Change", format_currency(welfare.get("producer_surplus_change", 0)), delta_color="inverse")
+                    with col3: st.metric("Government Revenue", format_currency(welfare.get("government_revenue", 0)))
+                    with col4: st.metric("Deadweight Loss", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    # Business View: Cost & Price Analysis
+                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                    st.markdown("### Cost & Price Analysis (Business Metrics)")
+                    st.markdown("*Key commercial indicators for decision-making*")
+
+                    # Extract values for business metrics
+                    P_imp0 = price["import"]["before"]
+                    P_imp1 = price["import"]["after"]
+                    P_ret0 = price["retail"]["before"]
+                    delta_P_ret = price["retail"]["change"]
+                    M0 = params.get("quantity_d0", 1000) - params.get("quantity_s0", 800)
+                    M1 = result.get("quantity_changes", {}).get("import", {}).get("after", M0)
+                    t = params.get("tariff_rate", 0.1)
+
+                    # Calculate business metrics
+                    unit_tariff_cost = P_imp1 - P_imp0
+                    cost_increase_pct = (unit_tariff_cost / P_imp0 * 100) if P_imp0 != 0 else 0
+                    tariff_expenditure = unit_tariff_cost * M1
+                    retail_price_increase_pct = (delta_P_ret / P_ret0 * 100) if P_ret0 != 0 else 0
+                    import_decline_pct = ((M0 - M1) / M0 * 100) if M0 != 0 else 0
+
+                    # Display metrics in 4 columns
+                    m1, m2, m3, m4 = st.columns(4)
+                    with m1: st.metric("Unit Tariff Cost", f"¥{unit_tariff_cost:,.2f}")
+                    with m2: st.metric("Import Cost Increase", f"{cost_increase_pct:.2f}%", delta_color="inverse" if cost_increase_pct > 0 else "normal")
+                    with m3: st.metric("Est. Tariff Expenditure", f"¥{tariff_expenditure:,.0f}")
+                    with m4: st.metric("Terminal Price Increase", f"{retail_price_increase_pct:.2f}%", delta_color="inverse" if retail_price_increase_pct > 0 else "normal")
+
+                    m5, m6 = st.columns(2)
+                    with m5: st.metric("Import Volume Decline", f"{import_decline_pct:.2f}%", delta_color="inverse" if import_decline_pct > 0 else "normal")
+                    with m6: st.metric("Post-tariff Import Volume", f"{M1:,.0f}")
+
+                    st.caption("*Note: Tariff expenditure is a simplified estimate. The system also calculates government revenue using GR = ΔP_ret × M1.")
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                    # Price Pressure Judgment
+                    st.markdown("### Terminal Price Pressure Judgment")
+
+                    if retail_price_increase_pct <= 3:
+                        pressure_judgment = "Low Price Pressure. The price increase is small. The terminal market can fully absorb the additional cost without obvious sales impact."
+                        pressure_level = "success"
+                    elif retail_price_increase_pct <= 8:
+                        pressure_judgment = "Moderate Price Pressure. A slight retail price adjustment is required. Sales volume may decline moderately."
+                        pressure_level = "warning"
+                    else:
+                        pressure_judgment = "High Price Pressure. The cost surge is significant. It is difficult for the terminal market to bear, and sales volume will shrink obviously."
+                        pressure_level = "error"
+
+                    if pressure_level == "success":
+                        st.success(f"**Low Price Pressure**\n\n{pressure_judgment}")
+                    elif pressure_level == "warning":
+                        st.warning(f"**Moderate Price Pressure**\n\n{pressure_judgment}")
+                    else:
+                        st.error(f"**High Price Pressure**\n\n{pressure_judgment}")
+
+                st.markdown("")
+
+                # Card 3: Supply-Demand Equilibrium Chart (Plotly with hover and collapsible legend)
+                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+                st.markdown("### Supply-Demand Equilibrium Analysis")
+                st.markdown("*Visual representation of tariff impact on market welfare*")
+
+                import plotly.graph_objects as go
+                import numpy as np
+
+                # 固定关键数据点
+                Q0 = 1000  # 初始均衡数量
+                P0 = 8000  # 初始均衡价格（也是世界价格）
+                Pt = 8800  # 固定税后价格
+
+                # 需求曲线: P = 10000 - 2Q
+                # 供给曲线: P = 4000 + 4Q
+                Qd = (10000 - Pt) / 2  # 需求曲线与Pt的交点
+                Qs = (Pt - 4000) / 4   # 供给曲线与Pt的交点
+                Qd = max(0, min(Qd, 1500))
+                Qs = max(0, min(Qs, 1500))
+
+                # 创建图表
+                fig_eq = go.Figure()
+
+                # 需求曲线
+                q_range = np.linspace(0, 1500, 100)
+                p_demand = 10000 - 2 * q_range
+                fig_eq.add_trace(go.Scatter(
+                    x=q_range, y=p_demand,
+                    mode='lines',
+                    name='Demand Curve',
+                    line=dict(color='blue', width=2.5),
+                    hovertemplate='Quantity: %{x:.0f}<br>Price: %{y:,.0f} CNY<extra></extra>'
+                ))
+
+                # 供给曲线
+                p_supply = 4000 + 4 * q_range
+                fig_eq.add_trace(go.Scatter(
+                    x=q_range, y=p_supply,
+                    mode='lines',
+                    name='Supply Curve',
+                    line=dict(color='red', width=2.5),
+                    hovertemplate='Quantity: %{x:.0f}<br>Price: %{y:,.0f} CNY<extra></extra>'
+                ))
+
+                # 初始均衡点
+                fig_eq.add_trace(go.Scatter(
+                    x=[Q0], y=[P0],
+                    mode='markers',
+                    name=f'Initial Equilibrium (Q={Q0}, P={P0})',
+                    marker=dict(color='green', size=14, symbol='circle'),
+                    hovertemplate=f'Initial Equilibrium<br>Quantity: {Q0}<br>Price: {P0:,.0f} CNY<extra></extra>'
+                ))
+
+                # 税后价格线 - 使用shape替代add_hline
+                fig_eq.add_shape(
+                    type="line",
+                    x0=0, x1=1500,
+                    y0=Pt, y1=Pt,
+                    line=dict(color="orange", width=2, dash="dash"),
+                    layer="below"
+                )
+
+                # 世界价格线 - 使用shape替代add_hline
+                fig_eq.add_shape(
+                    type="line",
+                    x0=0, x1=1500,
+                    y0=P0, y1=P0,
+                    line=dict(color="gray", width=1.5, dash="dash"),
+                    layer="below"
+                )
+
+                # 添加图例项（使用scatter traces）
+                fig_eq.add_trace(go.Scatter(
+                    x=[None], y=[None],
+                    mode='lines',
+                    line=dict(color='orange', dash='dash', width=2),
+                    name=f'Price After Tariff (P={Pt})',
+                    showlegend=True
+                ))
+                fig_eq.add_trace(go.Scatter(
+                    x=[None], y=[None],
+                    mode='lines',
+                    line=dict(color='gray', dash='dash', width=1.5),
+                    name=f'World Price (P={P0})',
+                    showlegend=True
+                ))
+
+                # 添加填充区域 - 消费者剩余损失 (粉色) - Academic View Only
+                if not is_business_view:
+                    fig_eq.add_trace(go.Scatter(
+                        x=[0, Qd, Q0, 0, 0],
+                        y=[Pt, Pt, P0, P0, Pt],
+                        fill='toself',
+                        fillcolor='rgba(255, 182, 193, 0.5)',
+                        line_color='rgba(255, 182, 193, 0.8)',
+                        name='Consumer Surplus Loss',
+                        mode='lines',
+                        hovertemplate='Consumer Surplus Loss Region<br>Area: Pink<br>Click legend to toggle<extra></extra>'
+                    ))
+
+                    # 添加填充区域 - 生产者剩余增加 (浅绿)
+                    fig_eq.add_trace(go.Scatter(
+                        x=[0, Qs, Q0, 0, 0],
+                        y=[Pt, Pt, P0, P0, Pt],
+                        fill='toself',
+                        fillcolor='rgba(144, 238, 144, 0.4)',
+                        line_color='rgba(144, 238, 144, 0.6)',
+                        name='Producer Surplus Gain',
+                        mode='lines',
+                        hovertemplate='Producer Surplus Gain Region<br>Area: Light Green<br>Click legend to toggle<extra></extra>'
+                    ))
+
+                    # 添加填充区域 - 政府关税收入 (深绿)
+                    if Qd > Qs:
+                        fig_eq.add_trace(go.Scatter(
+                            x=[Qs, Qd, Qd, Qs, Qs],
+                            y=[P0, P0, Pt, Pt, P0],
+                            fill='toself',
+                            fillcolor='rgba(34, 139, 34, 0.5)',
+                            line_color='rgba(34, 139, 34, 0.8)',
+                        name='Government Revenue',
+                        mode='lines',
+                        hovertemplate='Government Revenue Region<br>Area: Dark Green<br>Click legend to toggle<extra></extra>'
+                    ))
+
+                # 无谓损失区域 (淡紫色) - Academic View Only
+                if not is_business_view:
+                    if Qs > 0:
+                        fig_eq.add_trace(go.Scatter(
+                            x=[Qs, Q0, Q0, Qs],
+                            y=[P0, P0, Pt, P0],
+                            fill='toself',
+                            fillcolor='rgba(221, 160, 221, 0.5)',
+                            line_color='rgba(221, 160, 221, 0.7)',
+                            name='Deadweight Loss (Production)',
+                            mode='lines',
+                            hovertemplate='DWL - Production Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
+                        ))
+
+                    if Qd < Q0:
+                        fig_eq.add_trace(go.Scatter(
+                            x=[Qd, Q0, Q0, Qd],
+                            y=[P0, P0, Pt, P0],
+                            fill='toself',
+                            fillcolor='rgba(221, 160, 221, 0.5)',
+                            line_color='rgba(221, 160, 221, 0.7)',
+                            name='Deadweight Loss (Consumption)',
+                            mode='lines',
+                            hovertemplate='DWL - Consumption Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
+                        ))
+
+                # 设置图表布局 - 可折叠图例
+                fig_eq.update_layout(
+                    title='Partial Equilibrium: Tariff Impact on Welfare',
+                    xaxis_title='Quantity',
+                    yaxis_title='Price (CNY)',
+                    xaxis=dict(range=[0, 1500], showgrid=True),
+                    yaxis=dict(range=[0, max(Pt * 1.3, P0 * 1.3)], showgrid=True),
+                    legend=dict(x=1.02, y=1),
+                    hovermode='closest',
+                    plot_bgcolor='white',
+                    height=450
+                )
+
+                st.plotly_chart(fig_eq, use_container_width=True)
+
+                # 添加可折叠图例说明
+                with st.expander("View/Hide Chart Legend", expanded=False):
+                    st.markdown("""
+                    **Chart Elements:**
+                    - **Blue Line**: Demand Curve (P = 10000 - 2Q)
+                    - **Red Line**: Supply Curve (P = 4000 + 4Q)
+                    - **Green Dot**: Initial Equilibrium Point
+                    - **Orange Dashed Line**: Price After Tariff
+                    - **Gray Dashed Line**: World Price (Pre-tariff)
+                    - **Pink Area**: Consumer Surplus Loss
+                    - **Light Green Area**: Producer Surplus Gain
+                    - **Dark Green Area**: Government Revenue
+                    - **Purple Area**: Deadweight Loss (efficiency distortion)
+
+                    *Hover over any element to see detailed values.*
+                    """)
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        # ========== Core Calculation Formulas Section ==========
+        with st.expander("Click to View Core Calculation Formulas (English)", expanded=False):
+            st.markdown("## Core Calculation Formulas")
+
+            # Section 1: Price Transmission Formulas
+            st.markdown("### 1. Price Transmission Formulas")
+            st.markdown(r"""
+            The price transmission chain calculates how tariff changes affect prices across the supply chain:
+
+            **Import Price (After Tariff):**
+            $$P_{imp1} = P_{imp0} \times (1 + t)$$
+
+            **Wholesale Price:**
+            $$P_{wh1} = P_{wh0} + (P_{imp1} - P_{imp0}) \times \alpha$$
+
+            **Retail Price:**
+            $$P_{ret1} = P_{ret0} + (P_{wh1} - P_{wh0}) \times \beta$$
+
+            **Retail Price Change:**
+            $$\Delta P_{ret} = P_{ret1} - P_{ret0}$$
+
+            Where:
+            - $P_{imp0}$: Pre-tariff import price (world price)
+            - $P_{wh0}$: Pre-tariff wholesale price
+            - $P_{ret0}$: Pre-tariff retail price
+            - $t$: Tariff rate
+            - $\alpha$: Import-to-Wholesale pass-through coefficient ($0 \leq \alpha \leq 1$)
+            - $\beta$: Wholesale-to-Retail pass-through coefficient ($0 \leq \beta \leq 1$)
+            """)
+
+            # Section 2: Welfare Effect Formulas
+            st.markdown("### 2. Welfare Effect Formulas")
+            st.markdown(r"""
+            The welfare effects measure the economic impact of tariffs on different market participants:
+
+            **Quantity Changes:**
+            $$Q_{d1} = Q_{d0} \times (1 + \varepsilon_d \times \frac{\Delta P_{ret}}{P_{ret0}})$$
+            $$Q_{s1} = Q_{s0} \times (1 + \varepsilon_s \times \frac{\Delta P_{ret}}{P_{ret0}})$$
+            $$M_1 = Q_{d1} - Q_{s1}$$
+
+            Where:
+            - $Q_{d0}$: Pre-tariff quantity demanded
+            - $Q_{s0}$: Pre-tariff domestic supply
+            - $\varepsilon_d$: Demand elasticity (must be negative)
+            - $\varepsilon_s$: Supply elasticity (must be positive)
+            - $M_1$: Post-tariff import volume
+
+            **Consumer Surplus Change:**
+            $$\Delta CS = -\frac{1}{2} \times \Delta P_{ret} \times (Q_{d0} + Q_{d1})$$
+
+            **Producer Surplus Change:**
+            $$\Delta PS = \frac{1}{2} \times \Delta P_{ret} \times (Q_{s0} + Q_{s1})$$
+
+            **Government Revenue (Corrected Formula):**
+            $$GR = \Delta P_{ret} \times M_1$$
+
+            **Deadweight Loss:**
+            $$DWL = \frac{1}{2} \times \Delta P_{ret} \times [(Q_{d0} - Q_{d1}) + (Q_{s1} - Q_{s0})]$$
+
+            **Welfare Identity (Validation):**
+            $$\Delta CS + \Delta PS + GR + DWL = 0$$
+
+            Where:
+            - $\Delta CS$: Change in consumer surplus (negative when prices rise)
+            - $\Delta PS$: Change in producer surplus (positive when prices rise)
+            - $GR$: Government tariff revenue
+            - $DWL$: Deadweight loss (always non-negative)
+            """)
+
+            # Note about formula correction
+            st.caption("Note: The government revenue formula has been corrected to GR = ΔP_retail × M1 to ensure the welfare identity holds. This reflects the actual price burden on consumers rather than using the pre-tariff import price as the tax base.")
+
 with tab2:
     # History页面 - 保持当前页面状态，不清除内容
     handle_page_change(PAGE_HISTORY)
@@ -1205,397 +1599,4 @@ with tab3:
     handle_page_change(PAGE_SENSITIVITY)
     # Sensitivity analysis content
     render_sensitivity_page(calculator)
-# ========== Calculate Button ==========
-if st.button("Calculate", type="primary"):
-    calculate_clicked = True
-else:
-    calculate_clicked = False
-
-if calculate_clicked:
-    with st.spinner("Calculating..."):
-        # 获取当前价格调整系数
-        current_price_factor = st.session_state.get('price_factor', 1.0)
-
-        result = calculator.calculate(
-            hs_code=hs_code,
-            tariff_rate=tariff_rate,
-            custom_params={
-                "pass_through_1": pass_through_1,
-                "pass_through_2": pass_through_2,
-                "elasticity": elasticity,
-                "supply_elasticity": supply_elasticity,
-                "price_factor": current_price_factor
-            }
-        )
-        # 保存计算结果到session_state，并记录当前参数哈希
-        st.session_state.calculation_result = result
-        st.session_state.show_export = False
-        st.session_state.last_params_hash = get_params_hash(
-            st.session_state.get('tariff_mode', 'Quick Presets'),
-            hs_code,
-            tariff_rate,
-            pass_through_1,
-            pass_through_2,
-            elasticity,
-            supply_elasticity
-        )
-
-        if result.get("success"):
-            # 保存历史记录
-            session_id = st.session_state.get("session_id", "default")
-            calculator.db.save_calculation_history(result, session_id=session_id)
-
-            # ========== Results Section with Cards ==========
-            st.markdown("## Calculation Results")
-
-            # Card 1: Price Changes Table
-            st.markdown('<div class="result-card">', unsafe_allow_html=True)
-            st.markdown("### Price Changes Across Supply Chain")
-            st.markdown("*Impact of tariff on import, wholesale, and retail prices*")
-
-            price = result["price_changes"]
-            welfare = result["welfare_effects"]
-            industry = result["industry"]
-            params = result["params"]
-
-            # 结果表格 - 英文标注
-            df = pd.DataFrame({
-                "Stage": ["Import", "Wholesale", "Retail"],
-                "Before Tax": [price["import"]["before"], price["wholesale"]["before"], price["retail"]["before"]],
-                "After Tax": [price["import"]["after"], price["wholesale"]["after"], price["retail"]["after"]],
-                "Change": [price["import"]["change"], price["wholesale"]["change"], price["retail"]["change"]],
-                "Change Rate": [f"{price['import']['change_rate']:.2f}%", f"{price['wholesale']['change_rate']:.2f}%", f"{price['retail']['change_rate']:.2f}%"]
-            })
-            st.dataframe(df.style.format({"Before Tax": "¥{:.2f}", "After Tax": "¥{:.2f}", "Change": "¥{:.2f}"}), use_container_width=True, hide_index=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            st.markdown("")
-
-            # Card 2: Welfare Effects (Academic View Only)
-            if not is_business_view:
-                st.markdown('<div class="result-card">', unsafe_allow_html=True)
-                st.markdown("### Welfare Effects Analysis")
-                st.markdown("*Economic impact on consumers, producers, and government*")
-
-                # 福利效应 - 英文标注
-                col1, col2, col3, col4 = st.columns(4)
-                with col1: st.metric("Consumer Surplus Change", format_currency(welfare.get("consumer_surplus_change", 0)), delta_color="inverse")
-                with col2: st.metric("Producer Surplus Change", format_currency(welfare.get("producer_surplus_change", 0)), delta_color="inverse")
-                with col3: st.metric("Government Revenue", format_currency(welfare.get("government_revenue", 0)))
-                with col4: st.metric("Deadweight Loss", format_currency(welfare.get("deadweight_loss", 0)), delta_color="inverse")
-                st.markdown('</div>', unsafe_allow_html=True)
-            else:
-                # Business View: Cost & Price Analysis
-                st.markdown('<div class="result-card">', unsafe_allow_html=True)
-                st.markdown("### Cost & Price Analysis (Business Metrics)")
-                st.markdown("*Key commercial indicators for decision-making*")
-
-                # Extract values for business metrics
-                P_imp0 = price["import"]["before"]
-                P_imp1 = price["import"]["after"]
-                P_ret0 = price["retail"]["before"]
-                delta_P_ret = price["retail"]["change"]
-                M0 = params.get("quantity_d0", 1000) - params.get("quantity_s0", 800)
-                M1 = result.get("quantity_changes", {}).get("import", {}).get("after", M0)
-                t = params.get("tariff_rate", 0.1)
-
-                # Calculate business metrics
-                unit_tariff_cost = P_imp1 - P_imp0
-                cost_increase_pct = (unit_tariff_cost / P_imp0 * 100) if P_imp0 != 0 else 0
-                tariff_expenditure = unit_tariff_cost * M1
-                retail_price_increase_pct = (delta_P_ret / P_ret0 * 100) if P_ret0 != 0 else 0
-                import_decline_pct = ((M0 - M1) / M0 * 100) if M0 != 0 else 0
-
-                # Display metrics in 4 columns
-                m1, m2, m3, m4 = st.columns(4)
-                with m1: st.metric("Unit Tariff Cost", f"¥{unit_tariff_cost:,.2f}")
-                with m2: st.metric("Import Cost Increase", f"{cost_increase_pct:.2f}%", delta_color="inverse" if cost_increase_pct > 0 else "normal")
-                with m3: st.metric("Est. Tariff Expenditure", f"¥{tariff_expenditure:,.0f}")
-                with m4: st.metric("Terminal Price Increase", f"{retail_price_increase_pct:.2f}%", delta_color="inverse" if retail_price_increase_pct > 0 else "normal")
-
-                m5, m6 = st.columns(2)
-                with m5: st.metric("Import Volume Decline", f"{import_decline_pct:.2f}%", delta_color="inverse" if import_decline_pct > 0 else "normal")
-                with m6: st.metric("Post-tariff Import Volume", f"{M1:,.0f}")
-
-                st.caption("*Note: Tariff expenditure is a simplified estimate. The system also calculates government revenue using GR = ΔP_ret × M1.")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                # Price Pressure Judgment
-                st.markdown("### Terminal Price Pressure Judgment")
-
-                if retail_price_increase_pct <= 3:
-                    pressure_judgment = "Low Price Pressure. The price increase is small. The terminal market can fully absorb the additional cost without obvious sales impact."
-                    pressure_level = "success"
-                elif retail_price_increase_pct <= 8:
-                    pressure_judgment = "Moderate Price Pressure. A slight retail price adjustment is required. Sales volume may decline moderately."
-                    pressure_level = "warning"
-                else:
-                    pressure_judgment = "High Price Pressure. The cost surge is significant. It is difficult for the terminal market to bear, and sales volume will shrink obviously."
-                    pressure_level = "error"
-
-                if pressure_level == "success":
-                    st.success(f"**Low Price Pressure**\n\n{pressure_judgment}")
-                elif pressure_level == "warning":
-                    st.warning(f"**Moderate Price Pressure**\n\n{pressure_judgment}")
-                else:
-                    st.error(f"**High Price Pressure**\n\n{pressure_judgment}")
-
-            st.markdown("")
-
-            # Card 3: Supply-Demand Equilibrium Chart (Plotly with hover and collapsible legend)
-            st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-            st.markdown("### Supply-Demand Equilibrium Analysis")
-            st.markdown("*Visual representation of tariff impact on market welfare*")
-
-            import plotly.graph_objects as go
-            import numpy as np
-
-            # 固定关键数据点
-            Q0 = 1000  # 初始均衡数量
-            P0 = 8000  # 初始均衡价格（也是世界价格）
-            Pt = 8800  # 固定税后价格
-
-            # 需求曲线: P = 10000 - 2Q
-            # 供给曲线: P = 4000 + 4Q
-            Qd = (10000 - Pt) / 2  # 需求曲线与Pt的交点
-            Qs = (Pt - 4000) / 4   # 供给曲线与Pt的交点
-            Qd = max(0, min(Qd, 1500))
-            Qs = max(0, min(Qs, 1500))
-
-            # 创建图表
-            fig_eq = go.Figure()
-
-            # 需求曲线
-            q_range = np.linspace(0, 1500, 100)
-            p_demand = 10000 - 2 * q_range
-            fig_eq.add_trace(go.Scatter(
-                x=q_range, y=p_demand,
-                mode='lines',
-                name='Demand Curve',
-                line=dict(color='blue', width=2.5),
-                hovertemplate='Quantity: %{x:.0f}<br>Price: %{y:,.0f} CNY<extra></extra>'
-            ))
-
-            # 供给曲线
-            p_supply = 4000 + 4 * q_range
-            fig_eq.add_trace(go.Scatter(
-                x=q_range, y=p_supply,
-                mode='lines',
-                name='Supply Curve',
-                line=dict(color='red', width=2.5),
-                hovertemplate='Quantity: %{x:.0f}<br>Price: %{y:,.0f} CNY<extra></extra>'
-            ))
-
-            # 初始均衡点
-            fig_eq.add_trace(go.Scatter(
-                x=[Q0], y=[P0],
-                mode='markers',
-                name=f'Initial Equilibrium (Q={Q0}, P={P0})',
-                marker=dict(color='green', size=14, symbol='circle'),
-                hovertemplate=f'Initial Equilibrium<br>Quantity: {Q0}<br>Price: {P0:,.0f} CNY<extra></extra>'
-            ))
-
-            # 税后价格线 - 使用shape替代add_hline
-            fig_eq.add_shape(
-                type="line",
-                x0=0, x1=1500,
-                y0=Pt, y1=Pt,
-                line=dict(color="orange", width=2, dash="dash"),
-                layer="below"
-            )
-
-            # 世界价格线 - 使用shape替代add_hline
-            fig_eq.add_shape(
-                type="line",
-                x0=0, x1=1500,
-                y0=P0, y1=P0,
-                line=dict(color="gray", width=1.5, dash="dash"),
-                layer="below"
-            )
-
-            # 添加图例项（使用scatter traces）
-            fig_eq.add_trace(go.Scatter(
-                x=[None], y=[None],
-                mode='lines',
-                line=dict(color='orange', dash='dash', width=2),
-                name=f'Price After Tariff (P={Pt})',
-                showlegend=True
-            ))
-            fig_eq.add_trace(go.Scatter(
-                x=[None], y=[None],
-                mode='lines',
-                line=dict(color='gray', dash='dash', width=1.5),
-                name=f'World Price (P={P0})',
-                showlegend=True
-            ))
-
-            # 添加填充区域 - 消费者剩余损失 (粉色) - Academic View Only
-            if not is_business_view:
-                fig_eq.add_trace(go.Scatter(
-                    x=[0, Qd, Q0, 0, 0],
-                    y=[Pt, Pt, P0, P0, Pt],
-                    fill='toself',
-                    fillcolor='rgba(255, 182, 193, 0.5)',
-                    line_color='rgba(255, 182, 193, 0.8)',
-                    name='Consumer Surplus Loss',
-                    mode='lines',
-                    hovertemplate='Consumer Surplus Loss Region<br>Area: Pink<br>Click legend to toggle<extra></extra>'
-                ))
-
-                # 添加填充区域 - 生产者剩余增加 (浅绿)
-                fig_eq.add_trace(go.Scatter(
-                    x=[0, Qs, Q0, 0, 0],
-                    y=[Pt, Pt, P0, P0, Pt],
-                    fill='toself',
-                    fillcolor='rgba(144, 238, 144, 0.4)',
-                    line_color='rgba(144, 238, 144, 0.6)',
-                    name='Producer Surplus Gain',
-                    mode='lines',
-                    hovertemplate='Producer Surplus Gain Region<br>Area: Light Green<br>Click legend to toggle<extra></extra>'
-                ))
-
-                # 添加填充区域 - 政府关税收入 (深绿)
-                if Qd > Qs:
-                    fig_eq.add_trace(go.Scatter(
-                        x=[Qs, Qd, Qd, Qs, Qs],
-                        y=[P0, P0, Pt, Pt, P0],
-                        fill='toself',
-                        fillcolor='rgba(34, 139, 34, 0.5)',
-                        line_color='rgba(34, 139, 34, 0.8)',
-                    name='Government Revenue',
-                    mode='lines',
-                    hovertemplate='Government Revenue Region<br>Area: Dark Green<br>Click legend to toggle<extra></extra>'
-                ))
-
-            # 无谓损失区域 (淡紫色) - Academic View Only
-            if not is_business_view:
-                if Qs > 0:
-                    fig_eq.add_trace(go.Scatter(
-                        x=[Qs, Q0, Q0, Qs],
-                        y=[P0, P0, Pt, P0],
-                        fill='toself',
-                        fillcolor='rgba(221, 160, 221, 0.5)',
-                        line_color='rgba(221, 160, 221, 0.7)',
-                        name='Deadweight Loss (Production)',
-                        mode='lines',
-                        hovertemplate='DWL - Production Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
-                    ))
-
-                if Qd < Q0:
-                    fig_eq.add_trace(go.Scatter(
-                        x=[Qd, Q0, Q0, Qd],
-                        y=[P0, P0, Pt, P0],
-                        fill='toself',
-                        fillcolor='rgba(221, 160, 221, 0.5)',
-                        line_color='rgba(221, 160, 221, 0.7)',
-                        name='Deadweight Loss (Consumption)',
-                        mode='lines',
-                        hovertemplate='DWL - Consumption Distortion<br>Area: Purple<br>Click legend to toggle<extra></extra>'
-                    ))
-
-            # 设置图表布局 - 可折叠图例
-            fig_eq.update_layout(
-                title='Partial Equilibrium: Tariff Impact on Welfare',
-                xaxis_title='Quantity',
-                yaxis_title='Price (CNY)',
-                xaxis=dict(range=[0, 1500], showgrid=True),
-                yaxis=dict(range=[0, max(Pt * 1.3, P0 * 1.3)], showgrid=True),
-                legend=dict(x=1.02, y=1),
-                hovermode='closest',
-                plot_bgcolor='white',
-                height=450
-            )
-
-            st.plotly_chart(fig_eq, use_container_width=True)
-
-            # 添加可折叠图例说明
-            with st.expander("View/Hide Chart Legend", expanded=False):
-                st.markdown("""
-                **Chart Elements:**
-                - **Blue Line**: Demand Curve (P = 10000 - 2Q)
-                - **Red Line**: Supply Curve (P = 4000 + 4Q)
-                - **Green Dot**: Initial Equilibrium Point
-                - **Orange Dashed Line**: Price After Tariff
-                - **Gray Dashed Line**: World Price (Pre-tariff)
-                - **Pink Area**: Consumer Surplus Loss
-                - **Light Green Area**: Producer Surplus Gain
-                - **Dark Green Area**: Government Revenue
-                - **Purple Area**: Deadweight Loss (efficiency distortion)
-
-                *Hover over any element to see detailed values.*
-                """)
-
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    # ========== Core Calculation Formulas Section ==========
-    with st.expander("Click to View Core Calculation Formulas (English)", expanded=False):
-        st.markdown("## Core Calculation Formulas")
-
-        # Section 1: Price Transmission Formulas
-        st.markdown("### 1. Price Transmission Formulas")
-        st.markdown(r"""
-        The price transmission chain calculates how tariff changes affect prices across the supply chain:
-
-        **Import Price (After Tariff):**
-        $$P_{imp1} = P_{imp0} \times (1 + t)$$
-
-        **Wholesale Price:**
-        $$P_{wh1} = P_{wh0} + (P_{imp1} - P_{imp0}) \times \alpha$$
-
-        **Retail Price:**
-        $$P_{ret1} = P_{ret0} + (P_{wh1} - P_{wh0}) \times \beta$$
-
-        **Retail Price Change:**
-        $$\Delta P_{ret} = P_{ret1} - P_{ret0}$$
-
-        Where:
-        - $P_{imp0}$: Pre-tariff import price (world price)
-        - $P_{wh0}$: Pre-tariff wholesale price
-        - $P_{ret0}$: Pre-tariff retail price
-        - $t$: Tariff rate
-        - $\alpha$: Import-to-Wholesale pass-through coefficient ($0 \leq \alpha \leq 1$)
-        - $\beta$: Wholesale-to-Retail pass-through coefficient ($0 \leq \beta \leq 1$)
-        """)
-
-        # Section 2: Welfare Effect Formulas
-        st.markdown("### 2. Welfare Effect Formulas")
-        st.markdown(r"""
-        The welfare effects measure the economic impact of tariffs on different market participants:
-
-        **Quantity Changes:**
-        $$Q_{d1} = Q_{d0} \times (1 + \varepsilon_d \times \frac{\Delta P_{ret}}{P_{ret0}})$$
-        $$Q_{s1} = Q_{s0} \times (1 + \varepsilon_s \times \frac{\Delta P_{ret}}{P_{ret0}})$$
-        $$M_1 = Q_{d1} - Q_{s1}$$
-
-        Where:
-        - $Q_{d0}$: Pre-tariff quantity demanded
-        - $Q_{s0}$: Pre-tariff domestic supply
-        - $\varepsilon_d$: Demand elasticity (must be negative)
-        - $\varepsilon_s$: Supply elasticity (must be positive)
-        - $M_1$: Post-tariff import volume
-
-        **Consumer Surplus Change:**
-        $$\Delta CS = -\frac{1}{2} \times \Delta P_{ret} \times (Q_{d0} + Q_{d1})$$
-
-        **Producer Surplus Change:**
-        $$\Delta PS = \frac{1}{2} \times \Delta P_{ret} \times (Q_{s0} + Q_{s1})$$
-
-        **Government Revenue (Corrected Formula):**
-        $$GR = \Delta P_{ret} \times M_1$$
-
-        **Deadweight Loss:**
-        $$DWL = \frac{1}{2} \times \Delta P_{ret} \times [(Q_{d0} - Q_{d1}) + (Q_{s1} - Q_{s0})]$$
-
-        **Welfare Identity (Validation):**
-        $$\Delta CS + \Delta PS + GR + DWL = 0$$
-
-        Where:
-        - $\Delta CS$: Change in consumer surplus (negative when prices rise)
-        - $\Delta PS$: Change in producer surplus (positive when prices rise)
-        - $GR$: Government tariff revenue
-        - $DWL$: Deadweight loss (always non-negative)
-        """)
-
-        # Note about formula correction
-        st.caption("Note: The government revenue formula has been corrected to GR = ΔP_retail × M1 to ensure the welfare identity holds. This reflects the actual price burden on consumers rather than using the pre-tariff import price as the tax base.")
 
