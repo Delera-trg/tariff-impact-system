@@ -604,14 +604,6 @@ def render_sensitivity_page(calculator):
                 # Create DataFrame
                 df = pd.DataFrame(results)
 
-                # Export button at TOP
-                st.markdown("### Export Analysis Results")
-                file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                file_path = exporter.export_to_excel({"sensitivity_analysis": df.to_dict()}, file_name=file_name)
-                with open(file_path, "rb") as f:
-                    st.download_button("Download Excel Report", data=f, file_name=os.path.basename(file_path),
-                                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
                 # ========== ACADEMIC CONCLUSION SECTION ==========
                 st.markdown("---")
                 st.markdown("## ACADEMIC CONCLUSION")
@@ -692,25 +684,6 @@ def render_sensitivity_page(calculator):
                 st.plotly_chart(fig_welfare, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
-                # Laffer Curve section (part of Academic)
-                st.markdown("### Optimal Tariff Rate Analysis")
-                try:
-                    from scipy.optimize import minimize_scalar
-                    base_price = industry_detail.get("base_price", 8000) if industry_detail else 8000
-                    def obj_rev(t):
-                        if t<=0 or t>=1: return float('inf')
-                        r = calculator.calculate(hs_code=hs_code, tariff_rate=t,
-                            custom_params={"base_price": base_price, "pass_through_1": pt1, "pass_through_2": pt2,
-                                          "elasticity": elasticity, "supply_elasticity": supply_elasticity_sens})
-                        return -r["welfare_effects"]["government_revenue"] if r.get("success") else float('inf')
-                    res = minimize_scalar(obj_rev, bounds=(0.001, 0.5), method='bounded')
-                    if res.success:
-                        st.metric("Revenue-Maximizing Rate", f"{res.x*100:.1f}%")
-                except:
-                    st.info("Optimizing...")
-
-                st.caption("*Academic analysis.*")
-
                 # ========== BUSINESS ANALYSIS SECTION ==========
                 st.markdown("---")
                 st.markdown("## BUSINESS ANALYSIS")
@@ -737,88 +710,72 @@ def render_sensitivity_page(calculator):
                         pressure = "High"
 
                     business_metrics.append({
-                            "rate": rate,
-                            "unit_tariff": unit_tariff,
-                            "retail_increase_pct": retail_increase_pct,
-                            "gr": gr,
-                            "pressure": pressure
-                        })
+                        "rate": rate,
+                        "unit_tariff": unit_tariff,
+                        "retail_increase_pct": retail_increase_pct,
+                        "gr": gr,
+                        "pressure": pressure
+                    })
 
-                    # Find optimal range (low pressure, reasonable revenue)
-                    low_pressure_rates = [m["rate"] for m in business_metrics if m["pressure"] == "Low"]
-                    moderate_pressure_rates = [m["rate"] for m in business_metrics if m["pressure"] == "Moderate"]
+                # Find optimal range (low pressure, reasonable revenue)
+                low_pressure_rates = [m["rate"] for m in business_metrics if m["pressure"] == "Low"]
+                moderate_pressure_rates = [m["rate"] for m in business_metrics if m["pressure"] == "Moderate"]
 
-                    # Generate business analysis
-                    st.markdown("### Cost & Pricing Pressure Analysis")
-                    st.markdown(f"""
-                    Based on the sensitivity analysis with transmission coefficients alpha={pt1} and beta={pt2}:
-                    """)
+                # Generate business analysis
+                st.markdown("### Cost & Pricing Pressure Analysis")
+                st.markdown(f"Based on the sensitivity analysis with transmission coefficients α={pt1} (Import→Wholesale) and β={pt2} (Wholesale→Retail):")
 
-                    # Key metrics table
-                    metrics_data = []
-                    for m in business_metrics:
-                        metrics_data.append({
-                            "Tariff Rate": f"{m['rate']*100:.0f}%",
-                            "Unit Tariff Cost": f"¥{m['unit_tariff']:,.2f}",
-                            "Retail Price Increase": f"{m['retail_increase_pct']:.2f}%",
-                            "Pressure Level": m['pressure']
-                        })
+                # Key metrics table
+                metrics_data = []
+                for m in business_metrics:
+                    metrics_data.append({
+                        "Tariff Rate": f"{m['rate']*100:.0f}%",
+                        "Unit Tariff Cost": f"¥{m['unit_tariff']:,.2f}",
+                        "Retail Price Increase": f"{m['retail_increase_pct']:.2f}%",
+                        "Pressure Level": m['pressure']
+                    })
 
-                    st.dataframe(pd.DataFrame(metrics_data), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(metrics_data), use_container_width=True, hide_index=True)
 
-                    # Price pressure distribution
-                    low_count = sum(1 for m in business_metrics if m["pressure"] == "Low")
-                    mod_count = sum(1 for m in business_metrics if m["pressure"] == "Moderate")
-                    high_count = sum(1 for m in business_metrics if m["pressure"] == "High")
+                # Price pressure distribution
+                low_count = sum(1 for m in business_metrics if m["pressure"] == "Low")
+                mod_count = sum(1 for m in business_metrics if m["pressure"] == "Moderate")
+                high_count = sum(1 for m in business_metrics if m["pressure"] == "High")
 
-                    st.markdown(f"""
-                    **Price Pressure Distribution:**
-                    - Low Pressure (≤3%): {low_count} tariff levels
-                    - Moderate Pressure (3-8%): {mod_count} tariff levels
-                    - High Pressure (>8%): {high_count} tariff levels
-                    """)
+                st.markdown(f"**Price Pressure Distribution:** Low (≤3%): {low_count} | Moderate (3-8%): {mod_count} | High (>8%): {high_count}")
 
-                    # Recommended range
-                    st.markdown("### Recommended Tariff Range for Business")
-                    if low_pressure_rates:
-                        min_optimal = min(low_pressure_rates) * 100
-                        max_optimal = max(low_pressure_rates) * 100
-                        st.success(f"**Optimal Range: {min_optimal:.0f}% - {max_optimal:.0f}%**")
-                        st.markdown(f"""
-                        Within this range, retail price increases remain below 3%, minimizing consumer demand impact and maintaining sales volume stability.
-                        """)
-                    elif moderate_pressure_rates:
-                        min_optimal = min(moderate_pressure_rates) * 100
-                        max_optimal = max(moderate_pressure_rates) * 100
-                        st.warning(f"**Moderate Risk Range: {min_optimal:.0f}% - {max_optimal:.0f}%**")
-                        st.markdown(f"""
-                        In this range, price increases are moderate (3-8%). Consider monitoring sales volume closely as consumer demand may decline moderately.
-                        """)
-                    else:
-                        st.error("**High Risk: All tariff levels result in >8% price increases**")
-                        st.markdown("Consider alternative strategies such as cost absorption or supply chain optimization.")
+                # Recommended range
+                st.markdown("### Recommended Tariff Range for Business")
+                if low_pressure_rates:
+                    min_optimal = min(low_pressure_rates) * 100
+                    max_optimal = max(low_pressure_rates) * 100
+                    st.success(f"**Optimal Range: {min_optimal:.0f}% - {max_optimal:.0f}%**")
+                    st.markdown("Within this range, retail price increases remain below 3%.")
+                elif moderate_pressure_rates:
+                    min_optimal = min(moderate_pressure_rates) * 100
+                    max_optimal = max(moderate_pressure_rates) * 100
+                    st.warning(f"**Moderate Risk Range: {min_optimal:.0f}% - {max_optimal:.0f}%**")
+                else:
+                    st.error("**High Risk: All tariff levels result in >8% price increases**")
 
-                    # Business insights
-                    st.markdown("### Key Business Insights")
+                # Business insights
+                st.markdown("### Key Business Insights")
 
-                    # Find rate with best revenue-to-pressure ratio
-                    best_efficiency_rate = None
-                    best_ratio = 0
-                    for m in business_metrics:
-                        if m["retail_increase_pct"] > 0:
-                            ratio = m["gr"] / m["retail_increase_pct"]
-                            if ratio > best_ratio:
-                                best_ratio = ratio
-                                best_efficiency_rate = m["rate"]
+                # Find rate with best revenue-to-pressure ratio
+                best_efficiency_rate = None
+                best_ratio = 0
+                for m in business_metrics:
+                    if m["retail_increase_pct"] > 0:
+                        ratio = m["gr"] / m["retail_increase_pct"]
+                        if ratio > best_ratio:
+                            best_ratio = ratio
+                            best_efficiency_rate = m["rate"]
 
-                    if best_efficiency_rate:
-                        st.markdown(f"""
-                        - **Best Revenue Efficiency**: Tariff rate at {best_efficiency_rate*100:.0f}% offers the best balance between government revenue generation and price pressure on consumers.
-                        - **Cost Transmission**: With alpha={pt1} and beta={pt2}, approximately {pt1*100:.0f}% of tariff costs are passed to wholesale, and {pt2*100:.0f}% to retail.
-                        - **Volume Risk**: Higher tariff rates lead to import volume decline due to reduced consumer purchasing power.
-                        """)
+                if best_efficiency_rate:
+                    st.markdown(f"- **Best Revenue Efficiency**: {best_efficiency_rate*100:.0f}% offers the best balance between revenue and price pressure.")
+                    st.markdown(f"- **Cost Transmission**: {pt1*100:.0f}% (import→wholesale), {pt2*100:.0f}% (wholesale→retail)")
 
-                    st.caption("*Note: This business analysis is generated based on model parameters and scenario assumptions. It is for reference only and does not constitute formal business advice.*")
+                st.caption("*Note: This business analysis is for reference only.")
 
                 # ========== Academic Conclusion ==========
                 st.markdown("## Comprehensive Analysis Conclusion (English)")
@@ -883,7 +840,6 @@ def render_sensitivity_page(calculator):
 
                 # Wrap content in card container
                 st.markdown('<div class="conclusion-card">', unsafe_allow_html=True)
-                st.markdown("## Comprehensive Analysis Conclusion (English)")
 
                 # Extract data for analysis
                 if results:
@@ -1049,10 +1005,17 @@ def render_sensitivity_page(calculator):
                 st.markdown('</div>', unsafe_allow_html=True)
 
                 # Export results
-                st.markdown("### Export Analysis Results")
+                st.markdown("---")
+                st.markdown("### 📥 Export Analysis Results")
                 file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                file_path = exporter.export_to_excel({"sensitivity_analysis": df.to_dict()}, file_name=file_name)
+                with open(file_path, "rb") as f:
+                    st.download_button("Download Excel Report", data=f, file_name=os.path.basename(file_path),
+                                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="sensitivity_export")
+
                 # ========== Laffer Curve Optimizer ==========
-                st.markdown("## Laffer Curve Optimal Tax Rate Solver")
+                st.markdown("---")
+                st.markdown("## 🎯 Laffer Curve Optimal Tax Rate Solver")
 
                 st.markdown("""
                 This module automatically finds the optimal tariff rate that maximizes different objectives:
