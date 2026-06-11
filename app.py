@@ -72,21 +72,22 @@ st.markdown("""
     /* ===== 卡片组件 ===== */
     /* 结果卡片 */
     .result-card {
-        background: #FFFFFF;
-        border-radius: 12px;
+        background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+        border-radius: 16px;
         padding: 1.5rem;
         margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         border: 1px solid #E2E8F0;
+        border-left: 4px solid #667EEA;
     }
 
     /* 图表卡片 */
     .chart-card {
-        background: #FFFFFF;
-        border-radius: 12px;
+        background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+        border-radius: 16px;
         padding: 1.5rem;
         margin: 1.5rem 0;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         border: 1px solid #E2E8F0;
     }
 
