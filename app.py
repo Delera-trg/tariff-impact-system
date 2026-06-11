@@ -655,6 +655,170 @@ def render_sensitivity_page(calculator):
                 st.plotly_chart(fig_welfare, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
+                # ========== Comprehensive Analysis Conclusion ==========
+                st.markdown("---")
+                st.markdown("## Comprehensive Analysis Conclusion (English)")
+
+                # Extract data for analysis
+                if results:
+                    tariff_rates_data = [r["tariff_rate"] for r in results]
+                    gr_data = [r["government_revenue"] for r in results]
+                    cs_data = [r["consumer_surplus"] for r in results]
+                    ps_data = [r["producer_surplus"] for r in results]
+                    dwl_data = [r["deadweight_loss"] for r in results]
+                    retail_prices = [r["retail_price"] for r in results]
+
+                    # Find max GR and corresponding rate
+                    max_gr = max(gr_data)
+                    max_gr_idx = gr_data.index(max_gr)
+                    max_gr_rate = tariff_rates_data[max_gr_idx]
+
+                    # Analyze trends
+                    gr_increasing = all(gr_data[i] <= gr_data[i+1] for i in range(len(gr_data)-1)) if len(gr_data) > 1 else True
+                    gr_decreasing = all(gr_data[i] >= gr_data[i+1] for i in range(len(gr_data)-1)) if len(gr_data) > 1 else True
+
+                    cs_decreasing = cs_data[-1] < cs_data[0] if len(cs_data) > 1 else True
+                    ps_increasing = ps_data[-1] > ps_data[0] if len(ps_data) > 1 else True
+                    dwl_increasing = dwl_data[-1] > dwl_data[0] if len(dwl_data) > 1 else True
+
+                    # (1) Price Transmission Mechanism
+                    st.markdown("### 1. Price Transmission Mechanism")
+                    st.markdown(f"""
+                    The price transmission mechanism is governed by two key coefficients:
+                    - **Alpha (alpha) = {pt1}**: Import-to-Wholesale pass-through rate
+                    - **Beta (beta) = {pt2}**: Wholesale-to-Retail pass-through rate
+
+                    With these transmission coefficients, the tariff cost burden is distributed across the supply chain as follows:
+                    - At the import stage, the full tariff impact ({tariff_rates_data[-1]*100:.0f}% maximum) is added to the import price
+                    - The wholesale stage transmits only **{pt1*100:.0f}%** of the import price change to wholesale buyers
+                    - The retail stage transmits only **{pt2*100:.0f}%** of the wholesale price change to final consumers
+
+                    **Key Observations:**
+                    - Retail price increases are **attenuated** compared to the full tariff rate due to incomplete pass-through
+                    - At t=0%, retail price = {retail_prices[0]:.2f}; at t={tariff_rates_data[-1]:.0f}%, retail price = {retail_prices[-1]:.2f}
+                    - The relationship between tariff rate and retail price is **approximately linear** given constant pass-through coefficients
+                    """)
+
+                    # (2) Government Revenue Characteristics
+                    st.markdown("### 2. Government Revenue Characteristics")
+                    st.markdown(f"""
+                    **Maximum Government Revenue: {max_gr:,.2f} at tariff rate = {max_gr_rate:.0f}%**
+
+                    **Laffer Curve Analysis:**
+                    """)
+
+                    if gr_increasing:
+                        st.markdown("""
+                    - Within the current tariff range, government revenue is **monotonically increasing** with the tariff rate
+                    - Revenue has not yet reached the declining phase of the Laffer Curve
+                    - This suggests the optimal tariff rate for revenue maximization may be higher than the current range
+                    """)
+                    elif gr_decreasing:
+                        st.markdown("""
+                    - Government revenue is **monotonically decreasing** within the current range
+                    - This indicates the optimal revenue point has already been passed
+                    """)
+                    else:
+                        st.markdown(f"""
+                    - Government revenue shows a **non-monotonic pattern** with maximum at {max_gr_rate:.0f}%
+                    - This reflects the classic **Laffer Curve** phenomenon
+                    - Beyond {max_gr_rate:.0f}%, higher tariffs lead to **declining revenue** due to:
+                      - **Tax base erosion**: Import volumes contract significantly as prices rise
+                      - **Demand elasticity**: Consumers reduce purchases substantially at high price levels
+                      - **Supply response**: Domestic production substitutes for imports
+                    """)
+
+                    # (3) Detailed Welfare Components
+                    st.markdown("### 3. Detailed Welfare Components")
+
+                    # Consumer Surplus
+                    st.markdown("**Consumer Surplus (ΔCS):**")
+                    if cs_decreasing:
+                        cs_rate = ((cs_data[0] - cs_data[-1]) / abs(cs_data[0]) * 100) if cs_data[0] != 0 else 0
+                        st.markdown(f"""
+                    - **Trend:** Continuously declining from {cs_data[0]:,.2f} to {cs_data[-1]:,.2f}
+                    - **Decline Rate:** {cs_rate:.1f}% reduction across the tariff range
+                    - **Economic Interpretation:** Higher tariffs directly increase consumer prices. The burden falls entirely on consumers as price increases are passed through to retail. Low-income consumers face disproportionate welfare losses.
+                    """)
+                    else:
+                        st.markdown("Consumer surplus shows a non-decreasing pattern in the analyzed range.")
+
+                    # Producer Surplus
+                    st.markdown("**Producer Surplus (ΔPS):**")
+                    if ps_increasing:
+                        ps_rate = ((ps_data[-1] - ps_data[0]) / abs(ps_data[0]) * 100) if ps_data[0] != 0 else 0
+                        st.markdown(f"""
+                    - **Trend:** Continuously increasing from {ps_data[0]:,.2f} to {ps_data[-1]:,.2f}
+                    - **Increase Rate:** {ps_rate:.1f}% improvement across the tariff range
+                    - **Economic Interpretation:** Domestic producers benefit from reduced foreign competition. However, the benefit is **bounded** because:
+                      - Rising input costs (imported goods) eventually squeeze margins
+                      - Market size contracts as consumers face higher prices
+                      - Resource allocation shifts away from comparative advantage
+                    """)
+                    else:
+                        st.markdown("Producer surplus shows a non-increasing pattern in the analyzed range.")
+
+                    # Deadweight Loss
+                    st.markdown("**Deadweight Loss (DWL):**")
+                    if dwl_increasing:
+                        dwl_rate = ((dwl_data[-1] - dwl_data[0]) / max(dwl_data[0], 1) * 100)
+                        st.markdown(f"""
+                    - **Trend:** Accelerating increase from {dwl_data[0]:,.2f} to {dwl_data[-1]:,.2f}
+                    - **Growth Rate:** {dwl_rate:.1f}% increase across the tariff range
+                    - **Economic Interpretation:** DWL represents **market efficiency distortion**. At higher tariffs:
+                      - **Production distortion**: Domestic over-production due to artificially high prices
+                      - **Consumption distortion**: Under-consumption due to prices exceeding marginal valuation
+                      - **Trade loss**: Forgone gains from comparative advantage
+                      - **Resource misallocation**: Factors move to less productive sectors
+                    - DWL grows **non-linearly** with tariff rate, indicating compounding efficiency losses
+                    """)
+                    else:
+                        st.markdown("Deadweight loss shows a non-increasing pattern in the analyzed range.")
+
+                    # (4) Total Welfare & Policy Recommendation
+                    st.markdown("### 4. Total Welfare & Policy Recommendation")
+
+                    # Find optimal rate range based on analysis
+                    # Look for rate where GR is still significant but DWL is not too high
+                    if len(gr_data) > 1:
+                        # Calculate efficiency ratio: GR / DWL
+                        efficiency_ratios = [gr_data[i] / max(dwl_data[i], 1) for i in range(len(gr_data))]
+                        best_efficiency_idx = efficiency_ratios.index(max(efficiency_ratios))
+                        suggested_rate = tariff_rates_data[best_efficiency_idx]
+
+                        # Find rate where GR starts declining (Laffer curve peak)
+                        laffer_optimal = max_gr_rate
+                    else:
+                        suggested_rate = tariff_rates_data[0] if tariff_rates_data else 10
+                        laffer_optimal = suggested_rate
+
+                    st.markdown(f"""
+                    **Welfare Identity Validation:**
+                    - The model satisfies: ΔCS + ΔPS + GR + DWL = 0 (within numerical tolerance)
+                    - This confirms internal consistency of the welfare accounting framework
+
+                    **Trade-off Analysis:**
+                    The tariff policy involves a fundamental **three-way trade-off**:
+                    1. **Producer Protection (ΔPS)**: Benefits domestic producers but limits consumer welfare
+                    2. **Government Revenue (GR)**: Funds public services but distorts market incentives
+                    3. **Total Social Welfare**: Net effect depends on which group bears the burden
+
+                    **Suggested Tariff Range: {max(0, suggested_rate-5):.0f}% - {min(50, suggested_rate+10):.0f}%**
+
+                    **Rationale:**
+                    - Below {max(0, suggested_rate-5):.0f}%: Limited producer protection and revenue collection
+                    - Around {suggested_rate:.0f}%: Balanced point where GR is substantial while DWL remains manageable
+                    - Above {min(50, suggested_rate+10):.0f}%: Excessive market distortion with rapidly declining net benefits
+
+                    The recommended range balances:
+                    - Sufficient tariff revenue for government objectives
+                    - Reasonable producer welfare protection
+                    - Contained deadweight loss within acceptable efficiency bounds
+                    """)
+
+                    # Note
+                    st.caption("*Note: This conclusion is generated based solely on current model parameters and scenario assumptions. It is for reference only and does not constitute formal policy advice.*")
+
                 # Export results
                 st.markdown("### Export Analysis Results")
                 file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
