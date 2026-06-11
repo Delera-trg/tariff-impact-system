@@ -917,14 +917,9 @@ def render_sensitivity_page(calculator):
                     st.markdown("---")
 
                     # Report header area
-                    st.markdown("""
-                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                border-radius: 12px; padding: 20px; margin: 15px 0; color: white;">
-                        <h4 style="margin-bottom: 10px; color: white; font-size: 1.3rem;">Business Dynamic Analysis Report</h4>
-                        <p style="font-size: 14px; color: rgba(255,255,255,0.95);">Real-time business impact analysis based on tariff transmission model</p>
-                        <p style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 8px;">Analysis Range: {min_tariff}% - {max_tariff}% Tariff Rate</p>
-                    </div>
-                    """.format(min_tariff=min_tariff, max_tariff=max_tariff), unsafe_allow_html=True)
+                    st.markdown("## Business Dynamic Analysis Report")
+                    st.markdown("*Real-time business impact analysis based on tariff transmission model*")
+                    st.markdown(f"**Analysis Range:** {min_tariff}% - {max_tariff}% Tariff Rate")
 
                     # Section 1: Cost Impact Analysis
                     st.markdown("### 1. Cost Impact & Company Absorption Capacity")
