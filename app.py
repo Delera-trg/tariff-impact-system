@@ -199,32 +199,83 @@ calculator = TariffCalculator()
 chart_gen = ChartGenerator()
 exporter = Exporter()
 
-# ==================== 新手引导系统 ====================
+# ==================== 页面隔离系统 ====================
+# 页面ID常量
+PAGE_TARIFF_CALC = "tariff_calculation"
+PAGE_HISTORY = "history"
+PAGE_SENSITIVITY = "sensitivity_analysis"
+
+def clear_page_content(page_id):
+    """清除指定页面的临时内容（History页面除外）"""
+    if page_id == PAGE_HISTORY:
+        # History页面保留内容和设置，不清除
+        return
+
+    if page_id == PAGE_TARIFF_CALC:
+        # 清除关税计算页面的临时结果
+        st.session_state.calculation_result = None
+        st.session_state.show_export = False
+        # 清除计算相关的一次性状态
+        if 'calculate_clicked' in st.session_state:
+            del st.session_state['calculate_clicked']
+
+    elif page_id == PAGE_SENSITIVITY:
+        # 清除敏感性分析页面的临时结果
+        # 注意：敏感性分析的结果是在函数内部动态生成的，不需要额外清除
+        pass
+
 def init_session_state():
     """初始化session state"""
+    # 页面追踪 - 用于检测页面切换
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = PAGE_TARIFF_CALC
+    if 'last_page' not in st.session_state:
+        st.session_state.last_page = None
+
+    # 新手引导状态
     if 'guided' not in st.session_state:
         st.session_state.guided = False
     if 'show_guide' not in st.session_state:
         st.session_state.show_guide = True
     if 'guide_step' not in st.session_state:
         st.session_state.guide_step = 0
+
+    # 计算结果（页面级隔离）
     if 'calculation_result' not in st.session_state:
         st.session_state.calculation_result = None
     if 'show_export' not in st.session_state:
         st.session_state.show_export = False
+
+    # 会话ID
     if 'session_id' not in st.session_state:
-        # 生成唯一会话ID
         import uuid
         st.session_state.session_id = str(uuid.uuid4())
+
+    # 活跃标签页
     if 'active_tab' not in st.session_state:
         st.session_state.active_tab = "Calculation"
-    # 统一管理税率参数
+
+    # 统一管理税率参数（全局参数，跨页面共享）
     if 'tariff_rate' not in st.session_state:
         st.session_state.tariff_rate = 0.10  # 默认10%
     if 'current_preset' not in st.session_state:
         st.session_state.current_preset = "Custom"
 
 init_session_state()
+
+# 检测页面切换并清除旧页面的临时内容
+def handle_page_change(new_page):
+    """检测页面变化并处理页面隔离"""
+    last = st.session_state.get('last_page')
+
+    if last is not None and new_page != last:
+        # 页面切换了，清除旧页面的临时内容
+        clear_page_content(last)
+
+    st.session_state.last_page = new_page
+    st.session_state.current_page = new_page
+
+# 注意：页面切换处理在标签页上下文中调用
 
 # 清理缓存逻辑 - 确保每次计算都是最新结果
 # 通过在session_state中记录参数哈希来检测参数变化
@@ -1615,7 +1666,9 @@ st.markdown("""
 tab1, tab2, tab3 = st.tabs(["Tariff Calculation", "History", "Sensitivity Analysis"])
 
 with tab1:
-    # Tariff calculation content
+    # 关税计算页面 - 处理页面切换并清除旧页面内容
+    handle_page_change(PAGE_TARIFF_CALC)
+    # 关税计算内容
     st.title("China Commodity Price Transmission and Tariff Impact Analysis System")
     st.markdown("**Target Users: Economics Students, International Trade Learners**")
 
@@ -1657,10 +1710,14 @@ with tab1:
     st.markdown("---")
 
 with tab2:
+    # History页面 - 保持当前页面状态，不清除内容
+    handle_page_change(PAGE_HISTORY)
     # History content
     render_history_page(calculator)
 
 with tab3:
+    # 敏感性分析页面 - 处理页面切换
+    handle_page_change(PAGE_SENSITIVITY)
     # Sensitivity analysis content
     render_sensitivity_page(calculator)
 
