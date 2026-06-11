@@ -820,9 +820,8 @@ def render_sensitivity_page(calculator):
 
                     st.caption("*Note: This business analysis is generated based on model parameters and scenario assumptions. It is for reference only and does not constitute formal business advice.*")
 
-                # ========== Tab 3: Academic Conclusion ==========
-                with result_tabs[2]:
-                    st.markdown("## Comprehensive Analysis Conclusion (English)")
+                # ========== Academic Conclusion ==========
+                st.markdown("## Comprehensive Analysis Conclusion (English)")
 
                 # Add CSS styling for the conclusion module
                 st.markdown("""
@@ -1052,9 +1051,8 @@ def render_sensitivity_page(calculator):
                 # Export results
                 st.markdown("### Export Analysis Results")
                 file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                # ========== Tab 4: Laffer Curve Optimizer ==========
-                with result_tabs[3]:
-                    st.markdown("## Laffer Curve Optimal Tax Rate Solver")
+                # ========== Laffer Curve Optimizer ==========
+                st.markdown("## Laffer Curve Optimal Tax Rate Solver")
 
                 st.markdown("""
                 This module automatically finds the optimal tariff rate that maximizes different objectives:
