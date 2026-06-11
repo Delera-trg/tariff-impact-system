@@ -1033,6 +1033,300 @@ def render_sensitivity_page(calculator):
                 with open(file_path, "rb") as f:
                     st.download_button("Download Excel Report", data=f, file_name=os.path.basename(file_path),
                                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+                # ========== Laffer Curve Optimal Tax Rate Solver ==========
+                st.markdown("---")
+                st.markdown("## Laffer Curve Optimal Tax Rate Solver")
+
+                st.markdown("""
+                This module automatically finds the optimal tariff rate that maximizes different objectives:
+                - **Revenue Maximization**: Find the rate that maximizes government tariff revenue (GR)
+                - **Welfare Maximization**: Find the rate that minimizes total welfare loss
+                - **Consumer Protection**: Find the rate that minimizes consumer surplus loss
+                """)
+
+                # Optimization using scipy
+                try:
+                    from scipy.optimize import minimize_scalar
+                    import numpy as np
+
+                    # Get base parameters from current analysis
+                    base_price = industry_detail.get("base_price", 8000) if industry_detail else 8000
+                    wholesale_price = industry_detail.get("wholesale_price", base_price * 1.3) if industry_detail else base_price * 1.3
+                    retail_price = industry_detail.get("retail_price", base_price * 1.6) if industry_detail else base_price * 1.6
+
+                    # Objective functions
+                    def objective_revenue(t):
+                        """Negative revenue (for minimization)"""
+                        if t <= 0 or t >= 1:
+                            return float('inf')
+                        result = calculator.calculate(
+                            hs_code=hs_code,
+                            tariff_rate=t,
+                            custom_params={
+                                "base_price": base_price,
+                                "pass_through_1": pt1,
+                                "pass_through_2": pt2,
+                                "elasticity": elasticity,
+                                "supply_elasticity": supply_elasticity_sens
+                            }
+                        )
+                        if result.get("success"):
+                            return -result["welfare_effects"]["government_revenue"]
+                        return float('inf')
+
+                    def objective_welfare_loss(t):
+                        """Total welfare loss (for minimization)"""
+                        if t <= 0 or t >= 1:
+                            return float('inf')
+                        result = calculator.calculate(
+                            hs_code=hs_code,
+                            tariff_rate=t,
+                            custom_params={
+                                "base_price": base_price,
+                                "pass_through_1": pt1,
+                                "pass_through_2": pt2,
+                                "elasticity": elasticity,
+                                "supply_elasticity": supply_elasticity_sens
+                            }
+                        )
+                        if result.get("success"):
+                            we = result["welfare_effects"]
+                            # Total welfare loss = -ΔCS (consumer loss) + DWL
+                            # Since ΔCS is negative when prices rise
+                            return -we["consumer_surplus_change"] + we["deadweight_loss"]
+                        return float('inf')
+
+                    def objective_consumer_protection(t):
+                        """Consumer surplus loss (for minimization)"""
+                        if t <= 0 or t >= 1:
+                            return float('inf')
+                        result = calculator.calculate(
+                            hs_code=hs_code,
+                            tariff_rate=t,
+                            custom_params={
+                                "base_price": base_price,
+                                "pass_through_1": pt1,
+                                "pass_through_2": pt2,
+                                "elasticity": elasticity,
+                                "supply_elasticity": supply_elasticity_sens
+                            }
+                        )
+                        if result.get("success"):
+                            return -result["welfare_effects"]["consumer_surplus_change"]
+                        return float('inf')
+
+                    # Run optimizations
+                    optimal_results = {}
+
+                    # 1. Revenue Maximization
+                    try:
+                        res_revenue = minimize_scalar(objective_revenue, bounds=(0.001, 0.5), method='bounded')
+                        if res_revenue.success:
+                            optimal_results["revenue"] = {
+                                "rate": res_revenue.x,
+                                "value": -res_revenue.fun
+                            }
+                    except:
+                        pass
+
+                    # 2. Welfare Loss Minimization
+                    try:
+                        res_welfare = minimize_scalar(objective_welfare_loss, bounds=(0.001, 0.5), method='bounded')
+                        if res_welfare.success:
+                            optimal_results["welfare"] = {
+                                "rate": res_welfare.x,
+                                "value": res_welfare.fun
+                            }
+                    except:
+                        pass
+
+                    # 3. Consumer Protection
+                    try:
+                        res_consumer = minimize_scalar(objective_consumer_protection, bounds=(0.001, 0.5), method='bounded')
+                        if res_consumer.success:
+                            optimal_results["consumer"] = {
+                                "rate": res_consumer.x,
+                                "value": res_consumer.fun
+                            }
+                    except:
+                        pass
+
+                    # Display results
+                    if optimal_results:
+                        st.markdown("### Optimal Tariff Rates")
+
+                        col1, col2, col3 = st.columns(3)
+
+                        with col1:
+                            if "revenue" in optimal_results:
+                                rate_pct = optimal_results["revenue"]["rate"] * 100
+                                revenue_val = optimal_results["revenue"]["value"]
+                                st.metric("Revenue Maximization", f"{rate_pct:.1f}%", f"GR: ¥{revenue_val:,.0f}")
+                                st.caption("Best for government revenue")
+                            else:
+                                st.metric("Revenue Maximization", "N/A")
+
+                        with col2:
+                            if "welfare" in optimal_results:
+                                rate_pct = optimal_results["welfare"]["rate"] * 100
+                                welfare_loss = optimal_results["welfare"]["value"]
+                                st.metric("Welfare Maximization", f"{rate_pct:.1f}%", f"Loss: ¥{welfare_loss:,.0f}")
+                                st.caption("Minimizes total welfare loss")
+                            else:
+                                st.metric("Welfare Maximization", "N/A")
+
+                        with col3:
+                            if "consumer" in optimal_results:
+                                rate_pct = optimal_results["consumer"]["rate"] * 100
+                                consumer_loss = optimal_results["consumer"]["value"]
+                                st.metric("Consumer Protection", f"{rate_pct:.1f}%", f"Loss: ¥{consumer_loss:,.0f}")
+                                st.caption("Minimizes consumer impact")
+                            else:
+                                st.metric("Consumer Protection", "N/A")
+
+                        # Pareto Frontier Analysis
+                        st.markdown("### Pareto Frontier Analysis")
+
+                        # Generate data for visualization
+                        pareto_rates = np.linspace(0.01, 0.50, 50)
+                        pareto_revenue = []
+                        pareto_welfare_loss = []
+                        pareto_consumer_loss = []
+
+                        for t in pareto_rates:
+                            result = calculator.calculate(
+                                hs_code=hs_code,
+                                tariff_rate=t,
+                                custom_params={
+                                    "base_price": base_price,
+                                    "pass_through_1": pt1,
+                                    "pass_through_2": pt2,
+                                    "elasticity": elasticity,
+                                    "supply_elasticity": supply_elasticity_sens
+                                }
+                            )
+                            if result.get("success"):
+                                we = result["welfare_effects"]
+                                pareto_revenue.append(we["government_revenue"])
+                                pareto_welfare_loss.append(-we["consumer_surplus_change"] + we["deadweight_loss"])
+                                pareto_consumer_loss.append(-we["consumer_surplus_change"])
+
+                        # Create Plotly chart
+                        import plotly.graph_objects as go
+
+                        fig_pareto = go.Figure()
+
+                        # Revenue curve
+                        fig_pareto.add_trace(go.Scatter(
+                            x=pareto_rates * 100,
+                            y=pareto_revenue,
+                            mode='lines+markers',
+                            name='Government Revenue',
+                            line=dict(color='green', width=2),
+                            hovertemplate='Tariff: %{x:.1f}%<br>Revenue: %{y:,.0f} CNY<extra></extra>'
+                        ))
+
+                        # Welfare loss curve
+                        fig_pareto.add_trace(go.Scatter(
+                            x=pareto_rates * 100,
+                            y=pareto_welfare_loss,
+                            mode='lines+markers',
+                            name='Total Welfare Loss',
+                            line=dict(color='red', width=2),
+                            hovertemplate='Tariff: %{x:.1f}%<br>Welfare Loss: %{y:,.0f} CNY<extra></extra>'
+                        ))
+
+                        # Consumer loss curve
+                        fig_pareto.add_trace(go.Scatter(
+                            x=pareto_rates * 100,
+                            y=pareto_consumer_loss,
+                            mode='lines+markers',
+                            name='Consumer Surplus Loss',
+                            line=dict(color='blue', width=2),
+                            hovertemplate='Tariff: %{x:.1f}%<br>Consumer Loss: %{y:,.0f} CNY<extra></extra>'
+                        ))
+
+                        # Mark optimal points
+                        if "revenue" in optimal_results:
+                            fig_pareto.add_trace(go.Scatter(
+                                x=[optimal_results["revenue"]["rate"] * 100],
+                                y=[optimal_results["revenue"]["value"]],
+                                mode='markers',
+                                marker=dict(size=15, color='darkgreen', symbol='star'),
+                                name='Optimal Revenue'
+                            ))
+
+                        fig_pareto.update_layout(
+                            title='Pareto Frontier: Trade-offs Between Policy Objectives',
+                            xaxis_title='Tariff Rate (%)',
+                            yaxis_title='Amount (CNY)',
+                            hovermode='x unified',
+                            legend=dict(x=0, y=1),
+                            height=450
+                        )
+
+                        st.plotly_chart(fig_pareto, use_container_width=True)
+
+                        # Policy Recommendation
+                        st.markdown("### Policy Recommendation")
+
+                        if "revenue" in optimal_results and "welfare" in optimal_results:
+                            rec_rate = (optimal_results["revenue"]["rate"] + optimal_results["welfare"]["rate"]) / 2 * 100
+                            st.success(f"**Balanced Recommendation: {rec_rate:.1f}%**")
+                            st.markdown(f"""
+                            This rate balances government revenue generation with welfare protection. It represents a compromise between:
+                            - Revenue optimization at **{optimal_results['revenue']['rate']*100:.1f}%**
+                            - Welfare optimization at **{optimal_results['welfare']['rate']*100:.1f}%**
+                            """)
+
+                        st.caption("*Note: Optimal rates are calculated based on current model parameters. Real-world policy should consider additional factors.*")
+
+                    else:
+                        st.warning("Unable to calculate optimal rates. Please check input parameters.")
+
+                except ImportError:
+                    st.warning("scipy not available. Using simplified search instead.")
+
+                    # Simplified search without scipy
+                    search_rates = [0.01, 0.02, 0.05, 0.08, 0.10, 0.15, 0.20, 0.25, 0.30]
+                    results_simple = []
+
+                    for t in search_rates:
+                        result = calculator.calculate(
+                            hs_code=hs_code,
+                            tariff_rate=t,
+                            custom_params={
+                                "base_price": 8000,
+                                "pass_through_1": pt1,
+                                "pass_through_2": pt2,
+                                "elasticity": elasticity,
+                                "supply_elasticity": supply_elasticity_sens
+                            }
+                        )
+                        if result.get("success"):
+                            we = result["welfare_effects"]
+                            results_simple.append({
+                                "rate": t,
+                                "gr": we["government_revenue"],
+                                "welfare_loss": -we["consumer_surplus_change"] + we["deadweight_loss"],
+                                "consumer_loss": -we["consumer_surplus_change"]
+                            })
+
+                    if results_simple:
+                        # Find optimal rates
+                        best_revenue = max(results_simple, key=lambda x: x["gr"])
+                        best_welfare = min(results_simple, key=lambda x: x["welfare_loss"])
+                        best_consumer = min(results_simple, key=lambda x: x["consumer_loss"])
+
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Revenue Maximization", f"{best_revenue['rate']*100:.0f}%", f"GR: ¥{best_revenue['gr']:,.0f}")
+                        with col2:
+                            st.metric("Welfare Maximization", f"{best_welfare['rate']*100:.0f}%", f"Loss: ¥{best_welfare['welfare_loss']:,.0f}")
+                        with col3:
+                            st.metric("Consumer Protection", f"{best_consumer['rate']*100:.0f}%", f"Loss: ¥{best_consumer['consumer_loss']:,.0f}")
+
             else:
                 st.error("Calculation failed. Please check parameter settings.")
 
