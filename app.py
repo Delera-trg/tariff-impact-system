@@ -604,44 +604,52 @@ def render_sensitivity_page(calculator):
                 # Create DataFrame
                 df = pd.DataFrame(results)
 
-                # Display result table
-                st.markdown("### Analysis Results")
-                st.dataframe(df.style.format({
-                    "tariff_rate": "{:.0f}%",
-                    "import_price": "¥{:.2f}",
-                    "wholesale_price": "¥{:.2f}",
-                    "retail_price": "¥{:.2f}",
-                    "consumer_surplus": "¥{:.0f}",
-                    "producer_surplus": "¥{:.0f}",
-                    "government_revenue": "¥{:.0f}",
-                    "deadweight_loss": "¥{:.0f}"
-                }), use_container_width=True, hide_index=True)
+                # Use tabs to organize results
+                result_tabs = st.tabs([
+                    "📊 Charts & Data",
+                    "💼 Business Analysis",
+                    "🎓 Academic Conclusion",
+                    "📈 Laffer Curve Optimizer"
+                ])
 
-                # 绘制敏感性分析图表 - 包装在卡片中
-                st.markdown("### Price Sensitivity Analysis")
+                # ========== Tab 1: Charts & Data ==========
+                with result_tabs[0]:
+                    # Display result table
+                    st.markdown("### Analysis Results")
+                    st.dataframe(df.style.format({
+                        "tariff_rate": "{:.0f}%",
+                        "import_price": "¥{:.2f}",
+                        "wholesale_price": "¥{:.2f}",
+                        "retail_price": "¥{:.2f}",
+                        "consumer_surplus": "¥{:.0f}",
+                        "producer_surplus": "¥{:.0f}",
+                        "government_revenue": "¥{:.0f}",
+                        "deadweight_loss": "¥{:.0f}"
+                    }), use_container_width=True, hide_index=True)
 
-                # Card wrapper
-                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+                    # Price chart
+                    st.markdown("### Price Sensitivity Analysis")
+                    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
-                # 价格变化图 - 英文标注，X轴范围0-50%
-                import matplotlib.pyplot as plt
-                fig_price, ax = plt.subplots(figsize=(12, 6))
-                ax.plot(df['tariff_rate'], df['import_price'], marker='o', markersize=8, linewidth=2.5, label='Import Price')
-                ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', markersize=8, linewidth=2.5, label='Wholesale Price')
-                ax.plot(df['tariff_rate'], df['retail_price'], marker='^', markersize=8, linewidth=2.5, label='Retail Price')
-                ax.set_xlabel('Tariff Rate (%)', fontsize=13, fontweight='bold')
-                ax.set_ylabel('Price (CNY)', fontsize=13, fontweight='bold')
-                ax.set_title('Tariff Rate vs Price Changes', fontsize=15, fontweight='bold', pad=10)
-                ax.set_xlim(0, 50)
-                ax.legend(fontsize=11, loc='best')
-                ax.grid(True, alpha=0.3, linestyle='--')
-                ax.tick_params(axis='both', labelsize=11)
-                st.pyplot(fig_price, use_container_width=True)
-                plt.close(fig_price)  # 释放内存
-                st.markdown('</div>', unsafe_allow_html=True)
+                    import matplotlib.pyplot as plt
+                    fig_price, ax = plt.subplots(figsize=(12, 6))
+                    ax.plot(df['tariff_rate'], df['import_price'], marker='o', markersize=8, linewidth=2.5, label='Import Price')
+                    ax.plot(df['tariff_rate'], df['wholesale_price'], marker='s', markersize=8, linewidth=2.5, label='Wholesale Price')
+                    ax.plot(df['tariff_rate'], df['retail_price'], marker='^', markersize=8, linewidth=2.5, label='Retail Price')
+                    ax.set_xlabel('Tariff Rate (%)', fontsize=13, fontweight='bold')
+                    ax.set_ylabel('Price (CNY)', fontsize=13, fontweight='bold')
+                    ax.set_title('Tariff Rate vs Price Changes', fontsize=15, fontweight='bold', pad=10)
+                    ax.set_xlim(0, 50)
+                    ax.legend(fontsize=11, loc='best')
+                    ax.grid(True, alpha=0.3, linestyle='--')
+                    ax.tick_params(axis='both', labelsize=11)
+                    st.pyplot(fig_price, use_container_width=True)
+                    plt.close(fig_price)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-                st.markdown("### Welfare Effect Sensitivity Analysis")
-                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+                    # Welfare chart
+                    st.markdown("### Welfare Effect Sensitivity Analysis")
+                    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
                 # 福利效应图 - 使用Plotly添加hover工具提示
                 import plotly.graph_objects as go
@@ -685,18 +693,23 @@ def render_sensitivity_page(calculator):
                 st.plotly_chart(fig_welfare, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
-                # ========== Business-oriented Analysis ==========
-                st.markdown("---")
-                st.markdown("## Business-oriented Analysis")
+                # Export button
+                st.markdown("### Export Results")
+                file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                file_path = exporter.export_to_excel({"sensitivity_analysis": df.to_dict()}, file_name=file_name)
+                with open(file_path, "rb") as f:
+                    st.download_button("Download Excel Report", data=f, file_name=os.path.basename(file_path),
+                                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-                # Business metrics analysis based on sensitivity data
-                if results:
+                # ========== Tab 2: Business Analysis ==========
+                with result_tabs[1]:
+                    st.markdown("## Business-oriented Analysis")
+
                     tariff_rates_data = [r["tariff_rate"] for r in results]
                     retail_prices = [r["retail_price"] for r in results]
                     import_prices = [r["import_price"] for r in results]
                     gr_data = [r["government_revenue"] for r in results]
 
-                    # Calculate key business metrics for each tariff rate
                     P_imp0 = import_prices[0] / (1 + tariff_rates_data[0]) if tariff_rates_data[0] > 0 else import_prices[0]
                     P_ret0 = retail_prices[0]
 
@@ -706,7 +719,6 @@ def render_sensitivity_page(calculator):
                         retail_increase_pct = ((retail_prices[i] - P_ret0) / P_ret0 * 100) if P_ret0 > 0 else 0
                         gr = gr_data[i]
 
-                        # Determine price pressure level
                         if retail_increase_pct <= 3:
                             pressure = "Low"
                         elif retail_increase_pct <= 8:
@@ -798,8 +810,9 @@ def render_sensitivity_page(calculator):
 
                     st.caption("*Note: This business analysis is generated based on model parameters and scenario assumptions. It is for reference only and does not constitute formal business advice.*")
 
-                # ========== Comprehensive Analysis Conclusion ==========
-                st.markdown("---")
+                # ========== Tab 3: Academic Conclusion ==========
+                with result_tabs[2]:
+                    st.markdown("## Comprehensive Analysis Conclusion (English)")
 
                 # Add CSS styling for the conclusion module
                 st.markdown("""
@@ -1029,14 +1042,9 @@ def render_sensitivity_page(calculator):
                 # Export results
                 st.markdown("### Export Analysis Results")
                 file_name = f"Sensitivity_Analysis_{hs_code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                file_path = exporter.export_to_excel({"sensitivity_analysis": df.to_dict()}, file_name=file_name)
-                with open(file_path, "rb") as f:
-                    st.download_button("Download Excel Report", data=f, file_name=os.path.basename(file_path),
-                                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-                # ========== Laffer Curve Optimal Tax Rate Solver ==========
-                st.markdown("---")
-                st.markdown("## Laffer Curve Optimal Tax Rate Solver")
+                # ========== Tab 4: Laffer Curve Optimizer ==========
+                with result_tabs[3]:
+                    st.markdown("## Laffer Curve Optimal Tax Rate Solver")
 
                 st.markdown("""
                 This module automatically finds the optimal tariff rate that maximizes different objectives:
