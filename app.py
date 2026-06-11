@@ -1284,25 +1284,39 @@ if calculate_clicked:
                 hovertemplate=f'Initial Equilibrium<br>Quantity: {Q0}<br>Price: {P0:,.0f} CNY<extra></extra>'
             ))
 
-            # 税后价格线
-            fig_eq.add_hline(
-                y=Pt,
-                line_dash="dash",
-                line_color="orange",
-                line_width=2.5,
-                name=f'Price After Tariff (P={Pt})',
-                hovertemplate=f'Price After Tariff<br>Price: {Pt:,.0f} CNY<extra></extra>'
+            # 税后价格线 - 使用shape替代add_hline
+            fig_eq.add_shape(
+                type="line",
+                x0=0, x1=1500,
+                y0=Pt, y1=Pt,
+                line=dict(color="orange", width=2, dash="dash"),
+                layer="below"
             )
 
-            # 世界价格线
-            fig_eq.add_hline(
-                y=P0,
-                line_dash="dash",
-                line_color="gray",
-                line_width=1.5,
-                name=f'World Price (P={P0})',
-                hovertemplate=f'World Price<br>Price: {P0:,.0f} CNY<extra></extra>'
+            # 世界价格线 - 使用shape替代add_hline
+            fig_eq.add_shape(
+                type="line",
+                x0=0, x1=1500,
+                y0=P0, y1=P0,
+                line=dict(color="gray", width=1.5, dash="dash"),
+                layer="below"
             )
+
+            # 添加图例项（使用scatter traces）
+            fig_eq.add_trace(go.Scatter(
+                x=[None], y=[None],
+                mode='lines',
+                line=dict(color='orange', dash='dash', width=2),
+                name=f'Price After Tariff (P={Pt})',
+                showlegend=True
+            ))
+            fig_eq.add_trace(go.Scatter(
+                x=[None], y=[None],
+                mode='lines',
+                line=dict(color='gray', dash='dash', width=1.5),
+                name=f'World Price (P={P0})',
+                showlegend=True
+            ))
 
             # 添加填充区域 - 消费者剩余损失 (粉色)
             fig_eq.add_trace(go.Scatter(
