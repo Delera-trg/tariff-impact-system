@@ -927,7 +927,6 @@ def render_sensitivity_page(calculator):
                     """.format(min_tariff=min_tariff, max_tariff=max_tariff), unsafe_allow_html=True)
 
                     # Section 1: Cost Impact Analysis
-                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
                     st.markdown("### 1. Cost Impact & Company Absorption Capacity")
                     st.markdown("*Cost Impact & Company Absorption Capacity*")
 
@@ -948,10 +947,8 @@ def render_sensitivity_page(calculator):
                             <p style="margin: 0; color: #2D3748; font-size: 0.95rem;">{cost_pressure_desc}</p>
                         </div>
                         """, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
 
                     # Section 2: Market Risk
-                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
                     st.markdown("### 2. Market Demand & Sales Risk")
                     st.markdown("*Market Demand & Sales Risk*")
 
@@ -971,10 +968,8 @@ def render_sensitivity_page(calculator):
                         <p style="margin: 0; color: #2D3748; font-size: 0.95rem;"><strong>Market Risk Level: {market_risk_level}</strong> — {market_risk_desc}</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
 
                     # Section 3: Supply Chain Transmission Efficiency
-                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
                     st.markdown("### 3. Supply Chain Transmission Efficiency Assessment")
                     st.markdown("*Supply Chain Transmission Efficiency Assessment*")
 
@@ -994,10 +989,8 @@ def render_sensitivity_page(calculator):
                         <p style="margin: 0; color: #2D3748; font-size: 0.95rem;"><strong>Bargaining Power: {bargaining_power}</strong> — {bargaining_desc}</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
 
                     # Section 4: Response Strategy
-                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
                     st.markdown("### 4. Business Response Strategy Recommendations")
                     st.markdown("*Business Response Strategy Recommendations*")
 
@@ -1009,7 +1002,6 @@ def render_sensitivity_page(calculator):
                         <p style="margin: 0; font-size: 1rem; color: #2D3748;"><strong>{strategy}</strong></p>
                     </div>
                     """, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
 
                     # Section 5: Key Data Snapshot
                     with st.expander("View Key Data Snapshot", expanded=False):
@@ -1100,9 +1092,6 @@ def render_sensitivity_page(calculator):
                     st.markdown("---")
                     st.markdown("### Export Analysis Report")
 
-                    # Styled export area
-                    st.markdown('<div class="result-card" style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);">', unsafe_allow_html=True)
-
                     col1, col2 = st.columns([3, 1])
                     with col1:
                         st.markdown("**Export Business Dynamic Analysis Report**")
@@ -1115,7 +1104,6 @@ def render_sensitivity_page(calculator):
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             key="sensitivity_business_export"
                         )
-                    st.markdown('</div>', unsafe_allow_html=True)
 
             else:
                 st.error("Calculation failed. Please check parameter settings.")
